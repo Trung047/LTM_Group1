@@ -21,7 +21,8 @@ public class UserManager {
         }
     }
 
-    // dung cho thong bao he thong nhu join/leave, can gui cho tat ca ke ca nguoi gui
+    // dung cho thong bao he thong nhu join/leave, can gui cho tat ca ke ca nguoi
+    // gui
     public synchronized void broadcastAll(String message) {
         for (ClientHandler client : clientList) {
             client.sendMessage(message);
