@@ -1,25 +1,26 @@
-package database;
+package Database;
 
+import Logging.SystemLogger;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
 public class MessageRepository {
-    
-    public boolean saveMessage(String sender, String content) {
-        String sql = "INSERT INTO ChatHistory (sender, content) VALUES (?, ?)";
-        
+
+    public boolean saveMessage(String sender, String receiver, String content) {
+        String query = "INSERT INTO messages (sender, receiver, content, timestamp) VALUES (?, ?, ?, NOW())";
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+             
+            pstmt.setString(1, sender);
+            pstmt.setString(2, receiver);
+            pstmt.setString(3, content);
             
-            stmt.setString(1, sender);
-            stmt.setString(2, content);
-            
-            int rowsInserted = stmt.executeUpdate();
-            return rowsInserted > 0;
-            
+            pstmt.executeUpdate();
+            SystemLogger.info("Đã lưu tin nhắn từ " + sender + " đến " + receiver);
+            return true;
         } catch (SQLException e) {
-            System.err.println("Lỗi MessageRepository.saveMessage: " + e.getMessage());
+            SystemLogger.error("Lỗi lưu tin nhắn: " + e.getMessage());
             return false;
         }
     }
