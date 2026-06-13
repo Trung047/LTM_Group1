@@ -1,0 +1,60 @@
+# ==========================================
+# JAVA - Compiled files (khong push len GitHub)
+# ==========================================
+*.class
+*.jar
+*.war
+*.ear
+
+# ==========================================
+# BUILD FOLDERS - Khong push len GitHub
+# ==========================================
+bin/
+out/
+build/
+dist/
+target/
+
+# ==========================================
+# IDE FILES - Moi nguoi dung IDE khac nhau
+# ==========================================
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Eclipse
+.project
+.classpath
+.settings/
+*.launch
+
+# NetBeans
+nbproject/
+nbbuild/
+nbdist/
+nb-configuration.xml
+
+# VS Code
+.vscode/
+
+# ==========================================
+# HE DIEU HANH
+# ==========================================
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Mac
+.DS_Store
+.AppleDouble
+
+# ==========================================
+# LOG FILES
+# ==========================================
+*.log
+logs/
