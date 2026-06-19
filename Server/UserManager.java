@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+package Server;
 
 // class nay quan ly danh sach tat ca client dang ket noi va xu ly viec gui tin nhan
 public class UserManager {
