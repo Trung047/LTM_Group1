@@ -1,4 +1,5 @@
 import java.io.Serializable;
+package model;
 
 // Lưu thông tin của một tin nhắn
 public class Message implements Serializable{
