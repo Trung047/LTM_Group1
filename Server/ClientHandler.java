@@ -2,6 +2,8 @@ package Server;
 
 import java.io.*;
 import java.net.*;
+import model.Message;
+import model.Protocol;
 
 public class ClientHandler implements Runnable {
 
