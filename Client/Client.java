@@ -1,6 +1,8 @@
 import java.io.*;
 import java.net.*;
 import java.util.Scanner;
+import model.Message;
+import model.Protocol;
 
 public class Client {
 
