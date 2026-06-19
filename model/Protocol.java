@@ -1,8 +1,27 @@
-// Định nghĩa các giao thức sử dụng trong chương trình
-public class Protocol{
+package model;
+public class Protocol {
 
-    public static final String GROUP="GROUP"; // chat nhóm
-    public static final String PRIVATE="PRIVATE"; // chat riêng
-    public static final String JOIN="JOIN"; // tham gia phòng2
-    public static final String LEAVE="LEAVE"; // rời phòng
+    // Đăng nhập / đăng xuất
+    public static final String LOGIN = "LOGIN";
+    public static final String LOGOUT = "LOGOUT";
+
+    // Chat nhóm
+    public static final String GROUP = "GROUP";
+
+    // Chat riêng
+    public static final String PRIVATE = "PRIVATE";
+
+    // Tham gia / rời phòng chat
+    public static final String JOIN = "JOIN";
+    public static final String LEAVE = "LEAVE";
+
+    // Tin nhắn hệ thống
+    public static final String SYSTEM = "SYSTEM";
+
+    // Thông báo lỗi
+    public static final String ERROR = "ERROR";
+
+    private Protocol() {
+        // Ngăn tạo đối tượng Protocol
+    }
 }
