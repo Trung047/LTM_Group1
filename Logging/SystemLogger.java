@@ -1,4 +1,4 @@
-package Logging;
+package logging;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -8,11 +8,11 @@ import java.time.format.DateTimeFormatter;
 
 public class SystemLogger {
     private static final String LOG_FILE = "server_system_log.txt";
-    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public static void log(String level, String message) {
         try (PrintWriter out = new PrintWriter(new FileWriter(LOG_FILE, true))) {
-            String time = LocalDateTime.now().format(formatter);
+            String time = LocalDateTime.now().format(FORMATTER);
             out.println(time + " [" + level + "] " + message);
         } catch (IOException e) {
             System.err.println("Không thể ghi log: " + e.getMessage());
