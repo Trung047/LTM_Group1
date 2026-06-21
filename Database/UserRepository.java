@@ -8,41 +8,31 @@ import java.sql.SQLException;
 
 public class UserRepository {
     
-    public boolean authenticate(String username, String password) {
+    // Hàm kiểm tra đăng nhập
+    public boolean authenticateUser(String username, String password) {
         String query = "SELECT * FROM users WHERE username = ? AND password = ?";
+        
+        // Dùng DatabaseConnection để lấy kết nối
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
-             
+            
+            if (conn == null) return false; // Nếu mất kết nối thì báo false
+
             pstmt.setString(1, username);
             pstmt.setString(2, password); 
             
             ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                SystemLogger.info("User đăng nhập thành công: " + username);
-                return true;
-            }
-        } catch (SQLException e) {
-            SystemLogger.error("Lỗi xác thực user: " + e.getMessage());
-        }
-        return false;
-    }
-
-    public boolean registerUser(String username, String password) {
-        String query = "INSERT INTO users (username, password) VALUES (?, ?)";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-             
-            pstmt.setString(1, username);
-            pstmt.setString(2, password);
             
-            int rowsAffected = pstmt.executeUpdate();
-            if (rowsAffected > 0) {
-                SystemLogger.info("Tạo tài khoản thành công: " + username);
+            if (rs.next()) {
+                SystemLogger.info("Client đăng nhập thành công: " + username);
                 return true;
+            } else {
+                SystemLogger.info("Client đăng nhập thất bại: Sai tài khoản hoặc mật khẩu.");
+                return false;
             }
         } catch (SQLException e) {
-            SystemLogger.error("Lỗi đăng ký user: " + e.getMessage());
+            SystemLogger.error("Lỗi truy vấn tài khoản: " + e.getMessage());
+            return false;
         }
-        return false;
     }
 }
