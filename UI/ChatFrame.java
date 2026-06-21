@@ -1,68 +1,63 @@
 package UI;
 
-import java.awt.*;
-import java.io.PrintWriter;
+import Client.MessageReceiver;
+
 import javax.swing.*;
+import java.io.*;
+import java.net.Socket;
 
 public class ChatFrame extends JFrame {
 
-    private JTextArea chatArea;
-    private JTextField messageField;
-    private JButton sendButton;
+    private Socket socket;
+    private BufferedReader reader;
     private PrintWriter writer;
+    private ChatPanel chatPanel;
 
-    public ChatFrame(PrintWriter writer) {
-
-        this.writer = writer;
-
-        setTitle("Chat Application");
-        setSize(700, 500);
+    public ChatFrame(String username, String host, int port) {
+        setTitle("NetChat - " + username);
+        setSize(900, 600);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        setLayout(new BorderLayout());
+        chatPanel = new ChatPanel();
+        chatPanel.setMyUsername(username);
+        chatPanel.setConnInfo(host + ":" + port);
 
-        chatArea = new JTextArea();
-        chatArea.setEditable(false);
+        add(chatPanel);
 
-        JScrollPane scrollPane =
-                new JScrollPane(chatArea);
+        try {
+            socket = new Socket(host, port);
+            reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            writer = new PrintWriter(socket.getOutputStream(), true);
 
-        add(scrollPane, BorderLayout.CENTER);
+            chatPanel.appendSystemMessage("Đã kết nối server.");
 
-        JPanel inputPanel =
-                new JPanel(new BorderLayout());
+            chatPanel.setChatListener(new ChatPanel.ChatListener() {
+                @Override
+                public void onSendMessage(String text) {
+                    writer.println("[" + username + "] : " + text);
+                }
 
-        messageField = new JTextField();
-        sendButton = new JButton("Send");
+                @Override
+                public void onDisconnect() {
+                    closeConnection();
+                }
+            });
 
-        inputPanel.add(messageField, BorderLayout.CENTER);
-        inputPanel.add(sendButton, BorderLayout.EAST);
+            new MessageReceiver(reader, chatPanel, username).start();
 
-        add(inputPanel, BorderLayout.SOUTH);
-
-        sendButton.addActionListener(
-                e -> sendMessage());
-
-        messageField.addActionListener(
-                e -> sendMessage());
-    }
-
-    private void sendMessage() {
-
-        String message =
-                messageField.getText().trim();
-
-        if(message.isEmpty()) {
-            return;
+        } catch (IOException e) {
+            chatPanel.appendSystemMessage("Không kết nối được server: " + e.getMessage());
         }
-
-        writer.println(message);
-
-        messageField.setText("");
     }
 
-    public void appendMessage(String message) {
-        chatArea.append(message + "\n");
+    private void closeConnection() {
+        try {
+            if (socket != null) {
+                socket.close();
+            }
+        } catch (IOException ignored) {
+        }
+        dispose();
     }
 }
