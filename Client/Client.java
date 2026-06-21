@@ -9,10 +9,8 @@ public class Client {
     private Thread receiveThread;
     private boolean isRunning = false;
 
-    // Hàm kết nối được gọi bởi LoginFrame hoặc UI
     public boolean connect() {
         try {
-            // Đọc cấu hình từ config.properties của Client
             Properties prop = new Properties();
             prop.load(new FileInputStream("Client/config.properties"));
             String host = prop.getProperty("server.host", "localhost");
@@ -40,7 +38,7 @@ public class Client {
             try {
                 String message;
                 while (isRunning && (message = reader.readLine()) != null) {
-                    // Nhận được tin nhắn thô từ Server -> Ném sang MessageHandler của bên Client xử lý
+                    // Nhận được tin nhắn thô từ Server Ném sang MessageHandler của bên Client xử lý
                     MessageHandler.handleFromServer(message);
                 }
             } catch (IOException e) {
