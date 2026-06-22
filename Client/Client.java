@@ -1,72 +1,117 @@
+package Client;
+
+import Logging.SystemLogger;
+import model.Protocol;
+
 import java.io.*;
-import java.net.*;
-import java.util.Properties;
+import java.net.Socket;
 
+/**
+ * Lớp Client thuần – chịu trách nhiệm kết nối mạng.
+ * UI (ChatFrame) đăng ký MessageListener để nhận frame từ server.
+ */
 public class Client {
-    private Socket socket;
-    private PrintWriter writer;
+
+    public interface MessageListener {
+        void onFrame(String frame);
+        default void onDisconnected() {}
+    }
+
+    private Socket         socket;
+    private PrintWriter    writer;
     private BufferedReader reader;
-    private Thread receiveThread;
-    private boolean isRunning = false;
+    private boolean        running = false;
+    private MessageListener listener;
 
-    public boolean connect() {
+    // ── Connect ──────────────────────────────────────────────────────────────
+
+    public boolean connect(String host, int port) {
         try {
-            Properties prop = new Properties();
-            prop.load(new FileInputStream("Client/config.properties"));
-            String host = prop.getProperty("server.host", "localhost");
-            int port = Integer.parseInt(prop.getProperty("server.port", "8080"));
-
-            this.socket = new Socket(host, port);
-            this.writer = new PrintWriter(socket.getOutputStream(), true);
-            this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            this.isRunning = true;
-
-            // Khởi tạo luồng ngầm tự động nhận tin nhắn từ Server về cho Client
-            startListening();
-
-            System.out.println("[Client] Kết nối Server thành công!");
+            socket = new Socket(host, port);
+            socket.setTcpNoDelay(true);
+            writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8"), true);
+            reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+            running = true;
+            startReceiver();
+            SystemLogger.info("Kết nối server " + host + ":" + port);
             return true;
         } catch (IOException e) {
-            System.out.println("[Client Lỗi] Không thể kết nối: " + e.getMessage());
+            SystemLogger.error("Không thể kết nối: " + e.getMessage());
             return false;
         }
     }
 
-    // Luồng ngầm liên tục lắng nghe Server bắn dữ liệu về
-    private void startListening() {
-        receiveThread = new Thread(() -> {
+    // ── Send helpers ─────────────────────────────────────────────────────────
+
+    public void sendLogin(String username, String password) {
+        send(Protocol.build(Protocol.LOGIN, username, password));
+    }
+
+    public void sendGroup(String content) {
+        send(Protocol.build(Protocol.GROUP, content));
+    }
+
+    public void sendCreateGroup(String groupName) {
+        send(Protocol.build(Protocol.CREATE_GROUP, groupName));
+    }
+
+    public void sendPrivate(String toUser, String content) {
+        send(Protocol.build(Protocol.PRIVATE, toUser, content));
+    }
+
+    public void sendTyping(boolean isTyping) {
+        send(Protocol.build(Protocol.TYPING, isTyping ? "1" : "0"));
+    }
+
+    public void sendPing() {
+        send(Protocol.PING);
+    }
+
+    public void sendLogout() {
+        send(Protocol.LOGOUT);
+    }
+
+    public void send(String frame) {
+        if (writer != null && running) writer.println(frame);
+    }
+
+    // ── Receive loop ─────────────────────────────────────────────────────────
+
+    private void startReceiver() {
+        Thread t = new Thread(() -> {
             try {
-                String message;
-                while (isRunning && (message = reader.readLine()) != null) {
-                    // Nhận được tin nhắn thô từ Server Ném sang MessageHandler của bên Client xử lý
-                    MessageHandler.handleFromServer(message);
+                String line;
+                while (running && (line = reader.readLine()) != null) {
+                    if (listener != null) listener.onFrame(line);
                 }
             } catch (IOException e) {
-                System.out.println("[Client] Mất kết nối tới Server.");
+                if (running) SystemLogger.warning("Mất kết nối server.");
             } finally {
-                disconnect();
+                running = false;
+                if (listener != null) listener.onDisconnected();
             }
-        });
-        receiveThread.start();
+        }, "receive-thread");
+        t.setDaemon(true);
+        t.start();
     }
 
-    // Hàm gửi tin nhắn được gọi bởi ChatFrame (giao diện chat) khi bấm nút Gửi
-    public void sendMessage(String message) {
-        if (writer != null) {
-            writer.println(message);
-        }
-    }
+    // ── Disconnect ───────────────────────────────────────────────────────────
 
-    // Ngắt kết nối an toàn
     public void disconnect() {
+        running = false;
         try {
-            isRunning = false;
-            if (reader != null) reader.close();
             if (writer != null) writer.close();
+            if (reader != null) reader.close();
             if (socket != null && !socket.isClosed()) socket.close();
-            System.out.println("[Client] Đã đóng kết nối mạng.");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        } catch (IOException ignored) {}
+        SystemLogger.info("Đã ngắt kết nối.");
     }
+
+    public void setListener(MessageListener listener) {
+        this.listener = listener;
+    }
+
+    public MessageListener getListener() { return listener; }
+
+    public boolean isConnected() { return running; }
 }

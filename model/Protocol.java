@@ -1,27 +1,49 @@
 package model;
+
 public class Protocol {
+    // Auth
+    public static final String LOGIN   = "LOGIN";
+    public static final String LOGOUT  = "LOGOUT";
 
-    // Đăng nhập / đăng xuất
-    public static final String LOGIN = "LOGIN";
-    public static final String LOGOUT = "LOGOUT";
-
-    // Chat nhóm
-    public static final String GROUP = "GROUP";
-
-    // Chat riêng
+    // Chat
+    public static final String GROUP   = "GROUP";
     public static final String PRIVATE = "PRIVATE";
 
-    // Tham gia / rời phòng chat
-    public static final String JOIN = "JOIN";
-    public static final String LEAVE = "LEAVE";
+    // Typing
+    public static final String TYPING  = "TYPING";
 
-    // Tin nhắn hệ thống
-    public static final String SYSTEM = "SYSTEM";
+    // Ping
+    public static final String PING    = "PING";
+    public static final String PONG    = "PONG";
 
-    // Thông báo lỗi
+    // Server → Client broadcasts
+    public static final String USER_LIST = "USER_LIST"; // USER_LIST:u1|epochJoin,u2|epochJoin
+    public static final String USER_JOIN = "USER_JOIN"; // USER_JOIN:username|epochJoin
+    public static final String USER_LEFT = "USER_LEFT"; // USER_LEFT:username|epochLeft
+
+    // Server → Client message delivery
+    public static final String MSG_GROUP   = "MSG_GROUP";   // MSG_GROUP:from:content
+    public static final String MSG_PRIVATE = "MSG_PRIVATE"; // MSG_PRIVATE:from:to:content
+
+    // Auth results
+    public static final String AUTH_OK   = "AUTH_OK";
+    public static final String AUTH_FAIL = "AUTH_FAIL";
+
+    // Group room
+    public static final String CREATE_GROUP  = "CREATE_GROUP";  // CREATE_GROUP:groupName
+    public static final String GROUP_CREATED = "GROUP_CREATED"; // GROUP_CREATED:groupName:creator
+
+    // Errors
     public static final String ERROR = "ERROR";
 
-    private Protocol() {
-        // Ngăn tạo đối tượng Protocol
+    private Protocol() {}
+
+    public static String build(String cmd, String... parts) {
+        if (parts.length == 0) return cmd;
+        return cmd + ":" + String.join(":", parts);
+    }
+
+    public static String[] parse(String frame, int maxParts) {
+        return frame.split(":", maxParts);
     }
 }

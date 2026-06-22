@@ -1,6 +1,5 @@
 package UI;
 
-import UI.DarkTheme;
 import javax.swing.*;
 import javax.swing.border.*;
 import java.awt.*;
@@ -8,95 +7,171 @@ import java.awt.event.*;
 import java.util.*;
 import java.util.List;
 
-/**
- * UserListPanel — Sidebar hiển thị danh sách người dùng online/offline.
- * Custom cell renderer với avatar tròn và chấm trạng thái.
- */
-public class UserListFrame extends JFrame {
-    // ─── Callback ─────────────────────────────────────────
+public class UserListPanel extends JPanel {
+
     public interface UserClickListener {
         void onUserClicked(String username);
     }
 
-    // ─── Data ─────────────────────────────────────────────
-    private final List<String> onlineUsers = new ArrayList<>();
-    private final List<String> offlineUsers = new ArrayList<>();
-    // ─── UI ───────────────────────────────────────────────
-    private final DefaultListModel<String> onlineModel = new DefaultListModel<>();
-    private final DefaultListModel<String> offlineModel = new DefaultListModel<>();
-    private final JList<String> onlineList;
-    private final JList<String> offlineList;
-    private final JLabel lblOnlineCount;
-    private final JLabel lblOfflineCount;
-    private final JTextField searchField;
-    private String myUsername = "";
-    private UserClickListener clickListener;
+    // Online: username → epoch join (Long)
+    private final Map<String, Long>        onlineMap    = new LinkedHashMap<>();
+    // Offline: username → epoch left (Long)
+    private final Map<String, Long>        offlineMap   = new LinkedHashMap<>();
 
-    // ─── Constructor ──────────────────────────────────────
-    public UserListFrame() {
+    private final DefaultListModel<String> onlineModel  = new DefaultListModel<>();
+    private final DefaultListModel<String> offlineModel = new DefaultListModel<>();
+    private final JList<String>            onlineList;
+    private final JList<String>            offlineList;
+    private final JLabel                   lblOnlineCount;
+    private final JLabel                   lblOfflineCount;
+    private final JTextField               searchField;
+    private       String                   myUsername   = "";
+    private       UserClickListener        clickListener;
+
+    public UserListPanel() {
         setLayout(new BorderLayout());
         setBackground(DarkTheme.BG2);
         setPreferredSize(new Dimension(220, 0));
         setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, DarkTheme.BORDER));
-        // Search bar
+
         searchField = DarkTheme.makeTextField("🔍  Tìm kiếm...");
         searchField.setPreferredSize(new Dimension(0, 36));
+
         JPanel searchWrap = new JPanel(new BorderLayout());
         searchWrap.setBackground(DarkTheme.BG2);
         searchWrap.setBorder(BorderFactory.createEmptyBorder(10, 10, 6, 10));
         searchWrap.add(searchField);
-        lblOnlineCount = makeSectionBadge("0", DarkTheme.PRIMARY);
+
+        lblOnlineCount  = makeSectionBadge("0", DarkTheme.PRIMARY);
         lblOfflineCount = makeSectionBadge("0", DarkTheme.TEXT3);
-        // List renderers
-        onlineList = makeList(onlineModel, true);
+
+        onlineList  = makeList(onlineModel,  true);
         offlineList = makeList(offlineModel, false);
-        // Sections
-        JPanel onlineSection = buildSection("● ONLINE", lblOnlineCount, onlineList);
-        JPanel offlineSection = buildSection("○ OFFLINE", lblOfflineCount, offlineList);
+
         JPanel body = new JPanel();
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBackground(DarkTheme.BG2);
-        body.add(onlineSection);
-        body.add(offlineSection);
-        JScrollPane scrollPane = DarkTheme.makeScrollPane(body);
-        scrollPane.setBackground(DarkTheme.BG2);
-        scrollPane.getViewport().setBackground(DarkTheme.BG2);
+        body.add(buildSection("● ONLINE",  lblOnlineCount,  onlineList));
+        body.add(buildSection("○ OFFLINE", lblOfflineCount, offlineList));
+
+        JScrollPane scroll = DarkTheme.makeScrollPane(body);
+        scroll.setBackground(DarkTheme.BG2);
+        scroll.getViewport().setBackground(DarkTheme.BG2);
+
         add(searchWrap, BorderLayout.NORTH);
-        add(scrollPane, BorderLayout.CENTER);
-        // Search listener
+        add(scroll,     BorderLayout.CENTER);
+
         searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                filter();
-            }
+            public void insertUpdate(javax.swing.event.DocumentEvent e)  { filter(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e)  { filter(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {}
+        });
 
-            public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                filter();
-            }
+        // Refresh offline timestamps moi 30 giay (hien "X phut truoc" chinh xac hon)
+        javax.swing.Timer refreshTimer = new javax.swing.Timer(30_000, e -> SwingUtilities.invokeLater(this::filter));
+        refreshTimer.setInitialDelay(30_000);
+        refreshTimer.start();
+    }
 
-            public void changedUpdate(javax.swing.event.DocumentEvent e) {
-            }
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    public void setMyUsername(String name) { this.myUsername = name; }
+
+    /**
+     * Nhan USER_LIST tu server: Map<username, epochJoinMillis>
+     * Thay the toan bo danh sach online.
+     */
+    public void setOnlineUsersWithTime(Map<String, Long> userEpochMap) {
+        SwingUtilities.invokeLater(() -> {
+            onlineMap.clear();
+            onlineMap.putAll(userEpochMap);
+            // Xoa khoi offline neu gio online tro lai
+            for (String u : userEpochMap.keySet()) offlineMap.remove(u);
+            filter();
         });
     }
 
-    private void setBorder(MatteBorder matteBorder) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setBorder'");
+    /**
+     * Nhan USER_JOIN: them vao online, xoa khoi offline neu co.
+     * epochJoin = epoch millis luc join
+     */
+    public void addOnlineUser(String name, long epochJoin) {
+        SwingUtilities.invokeLater(() -> {
+            offlineMap.remove(name);
+            onlineMap.put(name, epochJoin);
+            filter();
+        });
     }
 
-    // ─── Build helpers ────────────────────────────────────
+    /**
+     * Nhan USER_LEFT: chuyen tu online sang offline.
+     * epochLeft = epoch millis luc ngat ket noi (de tinh "X phut truoc")
+     */
+    public void removeOnlineUser(String name, long epochLeft) {
+        SwingUtilities.invokeLater(() -> {
+            boolean wasOnline = onlineMap.remove(name) != null;
+            if (wasOnline && !name.equals(myUsername)) {
+                offlineMap.put(name, epochLeft);
+            }
+            filter();
+        });
+    }
+
+    public void setUserClickListener(UserClickListener l) { this.clickListener = l; }
+
+    public int getOnlineCount() { return onlineMap.size(); }
+
+    // ── Helper: format "X phut truoc" ────────────────────────────────────────
+
+    /**
+     * Tinh khoang thoi gian tu epochMillis den bay gio, tra ve string dep.
+     * Vi du: "Vua xong", "2 phut truoc", "1 gio truoc"
+     */
+    public static String formatTimeAgo(long epochMillis) {
+        long diffMs  = System.currentTimeMillis() - epochMillis;
+        long diffSec = diffMs / 1000;
+        if (diffSec < 60)  return "Vừa xong";
+        long diffMin = diffSec / 60;
+        if (diffMin < 60)  return diffMin + " phút trước";
+        long diffHr  = diffMin / 60;
+        if (diffHr  < 24)  return diffHr  + " giờ trước";
+        return (diffHr / 24) + " ngày trước";
+    }
+
+    // ── Filter (search) ───────────────────────────────────────────────────────
+
+    private void filter() {
+        String q = searchField.getText().trim().toLowerCase();
+        onlineModel.clear();
+        offlineModel.clear();
+        for (String u : onlineMap.keySet())
+            if (q.isEmpty() || u.toLowerCase().contains(q)) onlineModel.addElement(u);
+        for (String u : offlineMap.keySet())
+            if (q.isEmpty() || u.toLowerCase().contains(q)) offlineModel.addElement(u);
+        lblOnlineCount.setText(String.valueOf(onlineModel.size()));
+        lblOfflineCount.setText(String.valueOf(offlineModel.size()));
+        // Bao danh sach ve lai de cell renderer re-paint (cap nhat "X phut truoc")
+        onlineList.repaint();
+        offlineList.repaint();
+    }
+
+    // ── Build helpers ─────────────────────────────────────────────────────────
+
     private JPanel buildSection(String title, JLabel badge, JList<String> list) {
         JLabel header = new JLabel(title);
         header.setFont(DarkTheme.FONT_LABEL);
         header.setForeground(DarkTheme.TEXT3);
+
         JPanel headerRow = new JPanel(new BorderLayout());
         headerRow.setBackground(DarkTheme.BG2);
         headerRow.setBorder(BorderFactory.createEmptyBorder(10, 12, 4, 12));
         headerRow.add(header, BorderLayout.WEST);
-        headerRow.add(badge, BorderLayout.EAST);
+        headerRow.add(badge,  BorderLayout.EAST);
+
         JPanel section = new JPanel(new BorderLayout());
         section.setBackground(DarkTheme.BG2);
         section.add(headerRow, BorderLayout.NORTH);
-        section.add(list, BorderLayout.CENTER);
+        section.add(list,      BorderLayout.CENTER);
         return section;
     }
 
@@ -106,14 +181,12 @@ public class UserListFrame extends JFrame {
         list.setForeground(DarkTheme.TEXT);
         list.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
         list.setCellRenderer(new UserCellRenderer(isOnline));
-        list.setFixedCellHeight(48);
+        list.setFixedCellHeight(52);
         list.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
+            @Override public void mouseClicked(MouseEvent e) {
                 int idx = list.locationToIndex(e.getPoint());
-                if (idx >= 0 && clickListener != null) {
+                if (idx >= 0 && clickListener != null)
                     clickListener.onUserClicked(model.get(idx));
-                }
             }
         });
         return list;
@@ -121,15 +194,10 @@ public class UserListFrame extends JFrame {
 
     private JLabel makeSectionBadge(String text, Color color) {
         JLabel l = new JLabel(text) {
-            @Override
-            protected void paintComponent(Graphics g) {
+            @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                        RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(
-                        getBackground().getRed(),
-                        getBackground().getGreen(),
-                        getBackground().getBlue(), 40));
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 40));
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
                 g2.dispose();
                 super.paintComponent(g);
@@ -142,119 +210,62 @@ public class UserListFrame extends JFrame {
         return l;
     }
 
-    // ─── Public API ───────────────────────────────────────
-    public void setMyUsername(String name) {
-        this.myUsername = name;
-    }
+    // ── Cell renderer ─────────────────────────────────────────────────────────
 
-    /** Cập nhật toàn bộ danh sách online */
-    public void setOnlineUsers(List<String> users) {
-        SwingUtilities.invokeLater(() -> {
-            onlineUsers.clear();
-            onlineUsers.addAll(users);
-            filter();
-        });
-    }
-
-    /** Thêm một user vào danh sách online */
-    public void addOnlineUser(String name) {
-        SwingUtilities.invokeLater(() -> {
-            offlineUsers.remove(name);
-            if (!onlineUsers.contains(name))
-                onlineUsers.add(name);
-            filter();
-        });
-    }
-
-    /** Chuyển user sang offline */
-    public void removeOnlineUser(String name) {
-        SwingUtilities.invokeLater(() -> {
-            onlineUsers.remove(name);
-            if (!offlineUsers.contains(name) && !name.equals(myUsername))
-                offlineUsers.add(name);
-            filter();
-        });
-    }
-
-    public void setUserClickListener(UserClickListener l) {
-        this.clickListener = l;
-    }
-
-    // ─── Filter ───────────────────────────────────────────
-    private void filter() {
-        String q = searchField.getText().trim().toLowerCase();
-        onlineModel.clear();
-        offlineModel.clear();
-        for (String u : onlineUsers)
-            if (q.isEmpty() || u.toLowerCase().contains(q))
-                onlineModel.addElement(u);
-        for (String u : offlineUsers)
-            if (q.isEmpty() || u.toLowerCase().contains(q))
-                offlineModel.addElement(u);
-        lblOnlineCount.setText(String.valueOf(onlineModel.size()));
-        lblOfflineCount.setText(String.valueOf(offlineModel.size()));
-    }
-
-    // ─── Cell renderer ────────────────────────────────────
     private class UserCellRenderer extends DefaultListCellRenderer {
         private final boolean isOnline;
         private String currentName = "";
 
-        UserCellRenderer(boolean isOnline) {
-            this.isOnline = isOnline;
-        }
+        UserCellRenderer(boolean isOnline) { this.isOnline = isOnline; }
 
         @Override
         public Component getListCellRendererComponent(
-                JList<?> list, Object value, int idx,
-                boolean selected, boolean focused) {
+                JList<?> list, Object value, int idx, boolean selected, boolean focused) {
             currentName = (String) value;
             return new JPanel() {
                 final boolean sel = selected;
-                final String nm = currentName;
+                final String  nm  = currentName;
+                { setOpaque(false); }
 
-                @Override
-                protected void paintComponent(Graphics g) {
+                @Override protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                            RenderingHints.VALUE_ANTIALIAS_ON);
-                    // Row background
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     if (sel) {
                         g2.setColor(new Color(0x7c3aed20, true));
                         g2.fillRoundRect(4, 2, getWidth() - 8, getHeight() - 4, 10, 10);
                     }
-                    // Avatar (32x32)
                     int avX = 10, avY = (getHeight() - 32) / 2;
                     DarkTheme.paintAvatar(g2, nm, avX, avY, 32);
-                    // Status dot
-                    Color dot = isOnline ? DarkTheme.ONLINE : DarkTheme.OFFLINE;
+
+                    // Cham trang thai online/offline
                     g2.setColor(DarkTheme.BG2);
                     g2.fillOval(avX + 22, avY + 22, 12, 12);
-                    g2.setColor(dot);
+                    g2.setColor(isOnline ? DarkTheme.ONLINE : DarkTheme.OFFLINE);
                     g2.fillOval(avX + 24, avY + 24, 8, 8);
-                    // Name
+
                     int tx = avX + 40;
                     boolean isMe = nm.equals(myUsername);
-                    String display = isMe ? nm + " (Bạn)" : nm;
                     g2.setColor(isOnline ? DarkTheme.TEXT : DarkTheme.TEXT3);
                     g2.setFont(DarkTheme.FONT_BODY_B);
-                    g2.drawString(display, tx, getHeight() / 2 + 2);
-                    // Status text
-                    g2.setColor(DarkTheme.TEXT3);
+                    g2.drawString(isMe ? nm + " (Bạn)" : nm, tx, getHeight() / 2);
+
+                    // Dong trang thai: "Dang hoat dong" hoac "X phut truoc"
+                    String statusText;
+                    if (isOnline) {
+                        statusText = "● Đang hoạt động";
+                    } else {
+                        Long epochLeft = offlineMap.get(nm);
+                        statusText = epochLeft != null
+                            ? "○ " + formatTimeAgo(epochLeft)
+                            : "○ Offline";
+                    }
+                    g2.setColor(isOnline ? DarkTheme.ONLINE : DarkTheme.TEXT3);
                     g2.setFont(DarkTheme.FONT_SMALL);
-                    g2.drawString(isOnline ? "● Đang hoạt động" : "○ Offline",
-                            tx, getHeight() / 2 + 16);
+                    g2.drawString(statusText, tx, getHeight() / 2 + 16);
                     g2.dispose();
                 }
 
-                @Override
-                public Dimension getPreferredSize() {
-                    return new Dimension(0, 48);
-                }
-
-                {
-                    setOpaque(false);
-                }
+                @Override public Dimension getPreferredSize() { return new Dimension(0, 52); }
             };
         }
     }
