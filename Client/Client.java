@@ -5,10 +5,17 @@ import model.Protocol;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Lớp Client thuần – chịu trách nhiệm kết nối mạng.
- * UI (ChatFrame) đăng ký MessageListener để nhận frame từ server.
+ * Lop Client thuan - chiu trach nhiem ket noi mang.
+ * UI (ChatFrame) dang ky MessageListener de nhan frame tu server.
+ *
+ * FIX RACE CONDITION:
+ *   Khi server gui USER_LIST ngay sau AUTH_OK, listener that (MessageReceiver)
+ *   co the chua duoc set vi ChatFrame chua khoi tao xong.
+ *   Giai phap: buffer cac frame den khi listener that duoc gan vao.
  */
 public class Client {
 
@@ -20,8 +27,13 @@ public class Client {
     private Socket         socket;
     private PrintWriter    writer;
     private BufferedReader reader;
-    private boolean        running = false;
+    private boolean        running  = false;
     private MessageListener listener;
+
+    // Buffer cac frame khi chua co listener that
+    private final List<String> pendingFrames = new ArrayList<>();
+    // Co biet listener hien tai la listener "tam" (login) hay "that" (MessageReceiver)
+    private boolean listenerIsReal = false;
 
     // ── Connect ──────────────────────────────────────────────────────────────
 
@@ -33,10 +45,10 @@ public class Client {
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
             running = true;
             startReceiver();
-            SystemLogger.info("Kết nối server " + host + ":" + port);
+            SystemLogger.info("Ket noi server " + host + ":" + port);
             return true;
         } catch (IOException e) {
-            SystemLogger.error("Không thể kết nối: " + e.getMessage());
+            SystemLogger.error("Khong the ket noi: " + e.getMessage());
             return false;
         }
     }
@@ -82,10 +94,10 @@ public class Client {
             try {
                 String line;
                 while (running && (line = reader.readLine()) != null) {
-                    if (listener != null) listener.onFrame(line);
+                    dispatchFrame(line);
                 }
             } catch (IOException e) {
-                if (running) SystemLogger.warning("Mất kết nối server.");
+                if (running) SystemLogger.warning("Mat ket noi server.");
             } finally {
                 running = false;
                 if (listener != null) listener.onDisconnected();
@@ -93,6 +105,28 @@ public class Client {
         }, "receive-thread");
         t.setDaemon(true);
         t.start();
+    }
+
+    /**
+     * Gui frame den listener.
+     * Neu listener chua phai listener that (listenerIsReal = false),
+     * cac frame khong phai AUTH se duoc buffer lai de phat lai sau.
+     */
+    private synchronized void dispatchFrame(String frame) {
+        if (listenerIsReal) {
+            // Listener that da san sang: gui thang
+            if (listener != null) listener.onFrame(frame);
+        } else {
+            // Van dang dung listener tam (login): chi xu ly AUTH frame
+            boolean isAuth = frame.startsWith(Protocol.AUTH_OK + ":")
+                          || frame.startsWith(Protocol.AUTH_FAIL + ":");
+            if (isAuth) {
+                if (listener != null) listener.onFrame(frame);
+            } else {
+                // Buffer lai de phat sau khi listener that duoc set
+                pendingFrames.add(frame);
+            }
+        }
     }
 
     // ── Disconnect ───────────────────────────────────────────────────────────
@@ -104,11 +138,31 @@ public class Client {
             if (reader != null) reader.close();
             if (socket != null && !socket.isClosed()) socket.close();
         } catch (IOException ignored) {}
-        SystemLogger.info("Đã ngắt kết nối.");
+        SystemLogger.info("Da ngat ket noi.");
     }
 
-    public void setListener(MessageListener listener) {
-        this.listener = listener;
+    /**
+     * Set listener tam (dung trong qua trinh dang nhap).
+     * Frame khong phai AUTH se bi buffer lai.
+     */
+    public synchronized void setListener(MessageListener listener) {
+        this.listener      = listener;
+        this.listenerIsReal = false;
+    }
+
+    /**
+     * Set listener that sau khi dang nhap thanh cong (MessageReceiver).
+     * Se phat lai tat ca frame da bi buffer.
+     */
+    public synchronized void setRealListener(MessageListener listener) {
+        this.listener       = listener;
+        this.listenerIsReal = true;
+        // Phat lai cac frame bi buffer (vi du: USER_LIST gui ngay sau AUTH_OK)
+        List<String> toReplay = new ArrayList<>(pendingFrames);
+        pendingFrames.clear();
+        for (String frame : toReplay) {
+            listener.onFrame(frame);
+        }
     }
 
     public MessageListener getListener() { return listener; }

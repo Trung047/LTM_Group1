@@ -5,20 +5,27 @@ import Client.MessageReceiver;
 import model.Protocol;
 
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.Timer;
 import java.util.TimerTask;
 
 /**
- * ChatFrame — Cửa sổ chat chính sau khi đăng nhập thành công.
+ * ChatFrame - Cua so chat chinh sau khi dang nhap thanh cong.
  *
- * Tính năng:
- *  - Ping thật: markPingSent() ghi timestamp → PING → server trả PONG
- *    → onPong() tính System.currentTimeMillis() - pingSentAt = RTT thực tế
- *  - Typing debounce: gửi TYPING:1 khi bắt đầu gõ, TYPING:0 sau 1.5s dừng
- *  - Ngắt kết nối → quay lại LoginPanel
- *  - Private message: nhận dạng "@username nội_dung"
+ * Tinh nang:
+ *  - Ping that: markPingSent() ghi timestamp, PING, server tra PONG,
+ *    onPong() tinh System.currentTimeMillis() - pingSentAt = RTT thuc te
+ *  - Typing debounce: gui TYPING:1 khi bat dau go, TYPING:0 sau 1.5s dung
+ *  - Ngat ket noi -> quay lai LoginPanel
+ *  - Private message: nhan dang "@username noi_dung"
+ *  - Tao nhom: click nut "+" ben canh input -> hien dialog nhap ten nhom
+ *
+ * FIX RACE CONDITION USER_LIST:
+ *  Dung client.setRealListener() thay vi setListener() de dam bao
+ *  cac frame bi buffer (USER_LIST, USER_JOIN) duoc phat lai sau khi
+ *  MessageReceiver da san sang.
  */
 public class ChatFrame extends JFrame {
 
@@ -26,7 +33,7 @@ public class ChatFrame extends JFrame {
     private final ChatPanel chatPanel;
     private final String    username;
 
-    // Timer dùng chung cho ping và typing debounce
+    // Timer dung chung cho ping va typing debounce
     private final Timer   pingTimer  = new Timer("ping-timer", true);
     private       TimerTask typingTask = null;
     private       boolean   isTyping   = false;
@@ -45,37 +52,39 @@ public class ChatFrame extends JFrame {
         chatPanel.setConnInfo(host + ":" + port);
         add(chatPanel);
 
-        // Gắn MessageReceiver — xử lý mọi frame đến từ server
+        // Gan MessageReceiver truoc khi hien cua so
+        // Dung setRealListener de dam bao frame bi buffer duoc phat lai ngay
         MessageReceiver receiver = new MessageReceiver(chatPanel, username);
-        client.setListener(receiver);
+        client.setRealListener(receiver);
 
-        // Lắng nghe sự kiện từ ChatPanel
+        // Lang nghe su kien tu ChatPanel
         chatPanel.setChatListener(new ChatPanel.ChatListener() {
             @Override public void onSendMessage(String text) { sendMessage(text); }
             @Override public void onDisconnect()              { doDisconnect(); }
             @Override public void onTyping(boolean typing)   { handleTyping(typing); }
+            @Override public void onCreateGroup()            { doCreateGroup(); }
         });
 
-        // Ping timer: gửi PING mỗi 5 giây, đo RTT thật
+        // Ping timer: gui PING moi 5 giay, do RTT that
         pingTimer.scheduleAtFixedRate(new TimerTask() {
             @Override public void run() {
-                // Ghi timestamp trước khi gửi để tính RTT chính xác
                 chatPanel.markPingSent();
                 client.sendPing();
             }
         }, 3000, 5000);
 
-        // Đóng cửa sổ → ngắt kết nối sạch
+        // Dong cua so -> ngat ket noi sach
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent e) { doDisconnect(); }
         });
 
-        chatPanel.appendSystemMessage("Chào mừng " + username + " đến phòng chat! 🎉");
-        chatPanel.appendSystemMessage("Nhắn riêng: gõ @tên_người nội_dung");
+        chatPanel.appendSystemMessage("Chao mung " + username + " den phong chat! 🎉");
+        chatPanel.appendSystemMessage("Nhan rieng: go @ten_nguoi noi_dung");
+        chatPanel.appendSystemMessage("Tao nhom: bam nut [+] ben canh o nhap tin");
         chatPanel.requestInputFocus();
     }
 
-    // ── Gửi tin nhắn ─────────────────────────────────────────────────────────
+    // ── Gui tin nhan ─────────────────────────────────────────────────────────
 
     private void sendMessage(String text) {
         if (text.startsWith("@")) {
@@ -88,9 +97,39 @@ public class ChatFrame extends JFrame {
                     return;
                 }
             }
-            // Format sai (@abc không có nội dung) → gửi nhóm bình thường
+            // Format sai (@abc khong co noi dung) -> gui nhom binh thuong
         }
         client.sendGroup(text);
+    }
+
+    // ── Tao nhom ─────────────────────────────────────────────────────────────
+
+    /**
+     * Hien dialog nhap ten nhom, gui CREATE_GROUP len server.
+     * Server se broadcast GROUP_CREATED cho tat ca client.
+     */
+    private void doCreateGroup() {
+        String groupName = JOptionPane.showInputDialog(
+            this,
+            "Nhap ten nhom:",
+            "Tao nhom moi",
+            JOptionPane.PLAIN_MESSAGE
+        );
+        if (groupName == null) return; // Nguoi dung bam Cancel
+        groupName = groupName.trim();
+        if (groupName.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Ten nhom khong duoc de trong!",
+                "Loi", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (groupName.length() > 50) {
+            JOptionPane.showMessageDialog(this,
+                "Ten nhom qua dai (toi da 50 ky tu)!",
+                "Loi", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        client.sendCreateGroup(groupName);
     }
 
     // ── Typing debounce ───────────────────────────────────────────────────────
@@ -100,7 +139,7 @@ public class ChatFrame extends JFrame {
             isTyping = true;
             client.sendTyping(true);
         }
-        // Reset timer: dừng gõ 1.5s → gửi TYPING:0
+        // Reset timer: dung go 1.5s -> gui TYPING:0
         if (typingTask != null) typingTask.cancel();
         typingTask = new TimerTask() {
             @Override public void run() {
@@ -111,17 +150,17 @@ public class ChatFrame extends JFrame {
         pingTimer.schedule(typingTask, 1500);
     }
 
-    // ── Ngắt kết nối ─────────────────────────────────────────────────────────
+    // ── Ngat ket noi ─────────────────────────────────────────────────────────
 
     private void doDisconnect() {
         pingTimer.cancel();
         client.sendLogout();
         client.disconnect();
         dispose();
-        // Quay lại màn hình đăng nhập
+        // Quay lai man hinh dang nhap
         SwingUtilities.invokeLater(() -> {
             LoginPanel loginPanel = new LoginPanel();
-            JFrame loginFrame = new JFrame("NetChat — Đăng nhập");
+            JFrame loginFrame = new JFrame("NetChat — Dang nhap");
             loginFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             loginFrame.setSize(420, 540);
             loginFrame.setLocationRelativeTo(null);
@@ -132,33 +171,38 @@ public class ChatFrame extends JFrame {
         });
     }
 
-    // ── Static helper: xử lý đăng nhập từ LoginPanel ────────────────────────
+    // ── Static helper: xu ly dang nhap tu LoginPanel ────────────────────────
 
     /**
-     * Kết nối server và thực hiện handshake LOGIN.
+     * Ket noi server va thuc hien handshake LOGIN.
      *
-     * Luồng:
-     *   1. Tạo Client, kết nối TCP tới host:port
-     *   2. Đăng ký listener tạm để bắt AUTH_OK / AUTH_FAIL
-     *   3. Gửi LOGIN:username:password
-     *   4. Chờ tối đa 5 giây
-     *   5a. AUTH_OK  → tạo ChatFrame, đóng LoginFrame
-     *   5b. AUTH_FAIL → hiển thị lý do, reset nút kết nối
-     *   5c. Timeout  → báo lỗi, ngắt kết nối
+     * Luong:
+     *   1. Tao Client, ket noi TCP toi host:port
+     *   2. Dang ky listener tam de bat AUTH_OK / AUTH_FAIL
+     *   3. Gui LOGIN:username:password
+     *   4. Cho toi da 5 giay
+     *   5a. AUTH_OK  -> tao ChatFrame, dong LoginFrame
+     *   5b. AUTH_FAIL -> hien thi ly do, reset nut ket noi
+     *   5c. Timeout  -> bao loi, ngat ket noi
+     *
+     * NOTE: Dung setListener() (khong phai setRealListener()) cho listener tam
+     * de cac frame USER_LIST den truoc khi ChatFrame san sang duoc buffer lai.
      */
     public static void doLogin(JFrame loginFrame, LoginPanel loginPanel,
                                String uname, String password, String host, int port) {
         new Thread(() -> {
             Client c = new Client();
 
-            // Bước 1: kết nối TCP
+            // Buoc 1: ket noi TCP
             if (!c.connect(host, port)) {
-                loginPanel.showStatus("Không thể kết nối server " + host + ":" + port);
+                loginPanel.showStatus("Khong the ket noi server " + host + ":" + port);
                 loginPanel.resetConnectButton();
                 return;
             }
 
-            // Bước 2: listener tạm chờ AUTH_OK / AUTH_FAIL
+            // Buoc 2: listener tam cho AUTH_OK / AUTH_FAIL
+            // Dung setListener() (khong phai setRealListener()) ->
+            // cac frame khac (USER_LIST...) se bi buffer den khi listener that duoc set
             final String[] result = { null };
             final Object   lock   = new Object();
 
@@ -172,17 +216,17 @@ public class ChatFrame extends JFrame {
                 }
             });
 
-            // Bước 3: gửi LOGIN
+            // Buoc 3: gui LOGIN
             c.sendLogin(uname, password);
 
-            // Bước 4: chờ phản hồi (timeout 5 giây)
+            // Buoc 4: cho phan hoi (timeout 5 giay)
             synchronized (lock) {
                 try { lock.wait(5000); } catch (InterruptedException ignored) {}
             }
 
-            // Bước 5: xử lý kết quả
+            // Buoc 5: xu ly ket qua
             if (result[0] == null) {
-                loginPanel.showStatus("Server không phản hồi (timeout 5s).");
+                loginPanel.showStatus("Server khong phan hoi (timeout 5s).");
                 loginPanel.resetConnectButton();
                 c.disconnect();
                 return;
@@ -190,13 +234,14 @@ public class ChatFrame extends JFrame {
 
             if (result[0].startsWith(Protocol.AUTH_FAIL)) {
                 String[] p = Protocol.parse(result[0], 2);
-                loginPanel.showStatus(p.length > 1 ? p[1] : "Đăng nhập thất bại.");
+                loginPanel.showStatus(p.length > 1 ? p[1] : "Dang nhap that bai.");
                 loginPanel.resetConnectButton();
                 c.disconnect();
                 return;
             }
 
-            // AUTH_OK → mở ChatFrame
+            // AUTH_OK -> mo ChatFrame
+            // ChatFrame constructor se goi setRealListener() -> buffer duoc phat lai
             SwingUtilities.invokeLater(() -> {
                 loginFrame.setVisible(false);
                 loginFrame.dispose();

@@ -17,21 +17,21 @@ public class Protocol {
     public static final String PONG    = "PONG";
 
     // Server → Client broadcasts
-    public static final String USER_LIST = "USER_LIST"; // USER_LIST:u1|epochJoin,u2|epochJoin
-    public static final String USER_JOIN = "USER_JOIN"; // USER_JOIN:username|epochJoin
-    public static final String USER_LEFT = "USER_LEFT"; // USER_LEFT:username|epochLeft
+    public static final String USER_LIST = "USER_LIST"; // USER_LIST:u1|epoch,u2|epoch
+    public static final String USER_JOIN = "USER_JOIN"; // USER_JOIN:username|epoch
+    public static final String USER_LEFT = "USER_LEFT"; // USER_LEFT:username|epoch
 
     // Server → Client message delivery
-    public static final String MSG_GROUP   = "MSG_GROUP";   // MSG_GROUP:from:content
-    public static final String MSG_PRIVATE = "MSG_PRIVATE"; // MSG_PRIVATE:from:to:content
+    public static final String MSG_GROUP   = "MSG_GROUP";
+    public static final String MSG_PRIVATE = "MSG_PRIVATE";
 
     // Auth results
     public static final String AUTH_OK   = "AUTH_OK";
     public static final String AUTH_FAIL = "AUTH_FAIL";
 
-    // Group room
-    public static final String CREATE_GROUP  = "CREATE_GROUP";  // CREATE_GROUP:groupName
-    public static final String GROUP_CREATED = "GROUP_CREATED"; // GROUP_CREATED:groupName:creator
+    // Tao nhom
+    public static final String CREATE_GROUP  = "CREATE_GROUP";  // CREATE_GROUP:tenNhom
+    public static final String GROUP_CREATED = "GROUP_CREATED"; // GROUP_CREATED:tenNhom:nguoiTao
 
     // Errors
     public static final String ERROR = "ERROR";

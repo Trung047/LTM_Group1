@@ -27,6 +27,8 @@ public class ChatPanel extends JPanel {
         void onSendMessage(String text);
         void onDisconnect();
         void onTyping(boolean isTyping);
+        // Nguoi dung bam nut tao nhom
+        default void onCreateGroup() {}
     }
 
     // ── Fields ─────────────────────────────────────────────────────────────────
@@ -258,10 +260,50 @@ public class ChatPanel extends JPanel {
         topBar.setOpaque(false);
         topBar.add(emojiBar, BorderLayout.WEST);
 
+        // Nut tao nhom [+]
+        JButton groupBtn = new JButton("+") {
+            private boolean hov = false;
+            {
+                addMouseListener(new MouseAdapter() {
+                    public void mouseEntered(MouseEvent e) { hov = true;  repaint(); }
+                    public void mouseExited(MouseEvent e)  { hov = false; repaint(); }
+                });
+            }
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(hov ? DarkTheme.SURFACE : DarkTheme.BG2);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                g2.setColor(DarkTheme.PRIMARY);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 20));
+                FontMetrics fm = g2.getFontMetrics();
+                String txt = "+";
+                g2.drawString(txt,
+                    (getWidth() - fm.stringWidth(txt)) / 2,
+                    (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
+                g2.dispose();
+            }
+            @Override protected void paintBorder(Graphics g) {}
+        };
+        groupBtn.setPreferredSize(new Dimension(48, 48));
+        groupBtn.setContentAreaFilled(false);
+        groupBtn.setBorderPainted(false);
+        groupBtn.setFocusPainted(false);
+        groupBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        groupBtn.setToolTipText("Tao nhom moi");
+        groupBtn.addActionListener(e -> {
+            if (chatListener != null) chatListener.onCreateGroup();
+        });
+
+        JPanel rightBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        rightBtns.setOpaque(false);
+        rightBtns.add(groupBtn);
+        rightBtns.add(sendBtn);
+
         JPanel main = new JPanel(new BorderLayout(6, 0));
         main.setOpaque(false);
         main.add(inputWrap, BorderLayout.CENTER);
-        main.add(sendBtn,   BorderLayout.EAST);
+        main.add(rightBtns, BorderLayout.EAST);
 
         bar.add(topBar, BorderLayout.NORTH);
         bar.add(main,   BorderLayout.CENTER);
@@ -434,21 +476,21 @@ public class ChatPanel extends JPanel {
         });
     }
 
-    // Nhan USER_LIST: Map<username, epochJoinMillis>
-    public void setOnlineUsersWithTime(java.util.Map<String, Long> userEpochMap) {
+    // Nhan USER_LIST tu server: Map<username, epochJoinMillis>
+    public void setOnlineUsersWithTime(Map<String, Long> userEpochMap) {
         userListPanel.setOnlineUsersWithTime(userEpochMap);
         SwingUtilities.invokeLater(() ->
             lblOnlineStatus.setText("● " + userEpochMap.size() + " thành viên đang online"));
     }
 
-    // Nhan USER_JOIN: username va epochJoin (millis)
+    // Nhan USER_JOIN: username va epoch millis luc join
     public void addOnlineUser(String name, long epochJoin) {
         userListPanel.addOnlineUser(name, epochJoin);
         SwingUtilities.invokeLater(() ->
             lblOnlineStatus.setText("● " + userListPanel.getOnlineCount() + " thành viên đang online"));
     }
 
-    // Nhan USER_LEFT: username va epochLeft (millis)
+    // Nhan USER_LEFT: username va epoch millis luc ngat ket noi
     public void removeOnlineUser(String name, long epochLeft) {
         userListPanel.removeOnlineUser(name, epochLeft);
         SwingUtilities.invokeLater(() ->
