@@ -1,48 +1,161 @@
 package Database;
 
 import Logging.SystemLogger;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Properties;
 
 public class DatabaseConnection {
 
-    private static String DB_URL;
-    private static String USER;
-    private static String PASS;
-
-    static {
-        try {
-            Properties p = new Properties();
-            p.load(new FileInputStream("config.properties"));
-            String host = p.getProperty("db.host", "localhost");
-            String port = p.getProperty("db.port", "3306");
-            String name = p.getProperty("db.name", "ltm_db");
-            USER = p.getProperty("db.username", "root");
-            PASS = p.getProperty("db.password", "");
-            DB_URL = "jdbc:mysql://" + host + ":" + port + "/" + name
-                   + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
-        } catch (IOException e) {
-            // Fallback defaults
-            DB_URL = "jdbc:mysql://localhost:3306/ltm_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
-            USER   = "root";
-            PASS   = "";
-            SystemLogger.warning("Không đọc được config.properties, dùng giá trị mặc định DB.");
-        }
-    }
-
+    // Thông tin kết nối MySQL
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/ltm_db";
+    private static final String USER = "root";
+    private static final String PASS = "Kiet@2006!";
+    /**
+     * Tạo kết nối đến cơ sở dữ liệu
+     */
     public static Connection getConnection() {
+        Connection connection = null;
+
         try {
+            // Nạp Driver MySQL
             Class.forName("com.mysql.cj.jdbc.Driver");
-            return DriverManager.getConnection(DB_URL, USER, PASS);
+
+            // Kết nối Database
+            connection = DriverManager.getConnection(DB_URL, USER, PASS);
+
+            SystemLogger.info("Kết nối Database thành công.");
+
         } catch (ClassNotFoundException e) {
-            SystemLogger.error("Không tìm thấy MySQL JDBC Driver: " + e.getMessage());
+            SystemLogger.error("Không tìm thấy Driver MySQL: " + e.getMessage());
+
         } catch (SQLException e) {
-            SystemLogger.error("Lỗi kết nối CSDL: " + e.getMessage());
+            SystemLogger.error("Lỗi kết nối Database: " + e.getMessage());
         }
-        return null;
+
+        return connection;
     }
+
+    /**
+     * Kiểm tra Database có hoạt động không
+     */
+    public static boolean testConnection() {
+
+        try (Connection conn = getConnection()) {
+
+            if (conn != null && !conn.isClosed()) {
+                SystemLogger.info("Database đang hoạt động.");
+                return true;
+            }
+
+        } catch (SQLException e) {
+            SystemLogger.error("Lỗi kiểm tra kết nối: " + e.getMessage());
+        }
+
+        return false;
+    }
+
+    /**
+     * Đóng Connection
+     */
+    public static void close(Connection conn) {
+
+        try {
+
+            if (conn != null && !conn.isClosed()) {
+                conn.close();
+            }
+
+        } catch (SQLException e) {
+            SystemLogger.error("Lỗi đóng Connection: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Đóng PreparedStatement
+     */
+    public static void close(PreparedStatement ps) {
+
+        try {
+
+            if (ps != null) {
+                ps.close();
+            }
+
+        } catch (SQLException e) {
+            SystemLogger.error("Lỗi đóng PreparedStatement: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Đóng ResultSet
+     */
+    public static void close(ResultSet rs) {
+
+        try {
+
+            if (rs != null) {
+                rs.close();
+            }
+
+        } catch (SQLException e) {
+            SystemLogger.error("Lỗi đóng ResultSet: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Đóng đồng thời ResultSet, PreparedStatement và Connection
+     */
+    public static void close(ResultSet rs, PreparedStatement ps, Connection conn) {
+        close(rs);
+        close(ps);
+        close(conn);
+    }
+
+    /**
+     * Hiển thị thông tin Database
+     */
+    public static void printDatabaseInfo() {
+
+        try (Connection conn = getConnection()) {
+
+            if (conn != null) {
+                System.out.println("=================================");
+                System.out.println("Database URL : " + DB_URL);
+                System.out.println("User         : " + USER);
+                System.out.println("Product      : " + conn.getMetaData().getDatabaseProductName());
+                System.out.println("Version      : " + conn.getMetaData().getDatabaseProductVersion());
+                System.out.println("=================================");
+            }
+
+        } catch (SQLException e) {
+            SystemLogger.error("Không lấy được thông tin Database: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Chạy thử kết nối Database
+     */
+    public static void main(String[] args) {
+
+        if (testConnection()) {
+
+            System.out.println("================================");
+            System.out.println("Kết nối MySQL thành công.");
+            System.out.println("================================");
+
+            printDatabaseInfo();
+
+        } else {
+
+            System.out.println("================================");
+            System.out.println("Kết nối MySQL thất bại.");
+            System.out.println("================================");
+
+        }
+
+    }
+
 }
