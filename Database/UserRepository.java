@@ -1,67 +1,218 @@
 package Database;
 
 import Logging.SystemLogger;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserRepository {
-
-    /**
-     * Xác thực tài khoản.
-     * Trả về true nếu username+password khớp trong DB.
-     * Nếu DB không kết nối được, trả về true (chế độ demo không cần DB).
-     */
+    
+    // Hàm kiểm tra đăng nhập
     public boolean authenticateUser(String username, String password) {
-        Connection conn = DatabaseConnection.getConnection();
-        if (conn == null) {
-            SystemLogger.warning("DB không khả dụng — cho phép đăng nhập demo: " + username);
-            return true; // demo mode
-        }
-        String sql = "SELECT id FROM users WHERE username = ? AND password = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, username);
-            ps.setString(2, password);
-            ResultSet rs = ps.executeQuery();
+        String query = "SELECT * FROM users WHERE username = ? AND password = ?";
+        
+        // Dùng DatabaseConnection để lấy kết nối
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            
+            if (conn == null) return false; // Nếu mất kết nối thì báo false
+
+            pstmt.setString(1, username);
+            pstmt.setString(2, password); 
+            
+            ResultSet rs = pstmt.executeQuery();
+            
             if (rs.next()) {
-                SystemLogger.info("Đăng nhập thành công: " + username);
+                SystemLogger.info("Client đăng nhập thành công: " + username);
                 return true;
             } else {
-                SystemLogger.info("Đăng nhập thất bại: " + username);
+                SystemLogger.info("Client đăng nhập thất bại: Sai tài khoản hoặc mật khẩu.");
                 return false;
             }
         } catch (SQLException e) {
-            SystemLogger.error("Lỗi xác thực: " + e.getMessage());
-            return true; // demo fallback
-        } finally {
-            try { conn.close(); } catch (SQLException ignored) {}
+            SystemLogger.error("Lỗi truy vấn tài khoản: " + e.getMessage());
+            return false;
         }
+    }
+}
+/**
+ * Kiểm tra username đã tồn tại hay chưa.
+ */
+public boolean userExists(String username) {
+
+    String sql = "SELECT username FROM users WHERE username=?";
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        if (conn == null) return false;
+
+        ps.setString(1, username);
+
+        ResultSet rs = ps.executeQuery();
+
+        return rs.next();
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("Lỗi kiểm tra username: " + e.getMessage());
+
     }
 
-    /**
-     * Đăng ký tài khoản mới (nếu chưa tồn tại).
-     */
-    public boolean registerUser(String username, String password) {
-        Connection conn = DatabaseConnection.getConnection();
-        if (conn == null) return false;
-        String checkSql = "SELECT id FROM users WHERE username = ?";
-        try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
-            ps.setString(1, username);
-            if (ps.executeQuery().next()) return false; // đã tồn tại
-        } catch (SQLException e) {
-            SystemLogger.error("Lỗi kiểm tra user: " + e.getMessage());
-            return false;
-        }
-        String insertSql = "INSERT INTO users (username, password) VALUES (?, ?)";
-        try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
-            ps.setString(1, username);
-            ps.setString(2, password);
-            ps.executeUpdate();
-            SystemLogger.info("Đăng ký thành công: " + username);
-            return true;
-        } catch (SQLException e) {
-            SystemLogger.error("Lỗi đăng ký: " + e.getMessage());
-            return false;
-        } finally {
-            try { conn.close(); } catch (SQLException ignored) {}
-        }
+    return false;
+}
+
+/**
+ * Đăng ký tài khoản mới.
+ */
+public boolean registerUser(String username, String password) {
+
+    if (userExists(username)) {
+        SystemLogger.warning("Username đã tồn tại: " + username);
+        return false;
     }
+
+    String sql = "INSERT INTO users(username,password) VALUES(?,?)";
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        if (conn == null) return false;
+
+        ps.setString(1, username);
+        ps.setString(2, password);
+
+        if (ps.executeUpdate() > 0) {
+
+            SystemLogger.info("Đăng ký tài khoản thành công: " + username);
+
+            return true;
+        }
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("Lỗi đăng ký tài khoản: " + e.getMessage());
+
+    }
+
+    return false;
+}
+
+/**
+ * Đổi mật khẩu.
+ */
+public boolean changePassword(String username, String newPassword) {
+
+    String sql = "UPDATE users SET password=? WHERE username=?";
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        if (conn == null) return false;
+
+        ps.setString(1, newPassword);
+        ps.setString(2, username);
+
+        if (ps.executeUpdate() > 0) {
+
+            SystemLogger.info("Đổi mật khẩu thành công: " + username);
+
+            return true;
+        }
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("Lỗi đổi mật khẩu: " + e.getMessage());
+
+    }
+
+    return false;
+}
+
+/**
+ * Lấy ID người dùng theo username.
+ */
+public int getUserId(String username) {
+
+    String sql = "SELECT id FROM users WHERE username=?";
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        if (conn == null) return -1;
+
+        ps.setString(1, username);
+
+        ResultSet rs = ps.executeQuery();
+
+        if (rs.next()) {
+            return rs.getInt("id");
+        }
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("Lỗi lấy User ID: " + e.getMessage());
+
+    }
+
+    return -1;
+}
+
+/**
+ * Lấy danh sách tất cả tài khoản.
+ */
+public List<String> getAllUsers() {
+
+    List<String> users = new ArrayList<>();
+
+    String sql = "SELECT username FROM users ORDER BY username";
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql);
+         ResultSet rs = ps.executeQuery()) {
+
+        while (rs.next()) {
+
+            users.add(rs.getString("username"));
+
+        }
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("Lỗi lấy danh sách User: " + e.getMessage());
+
+    }
+
+    return users;
+}
+
+/**
+ * Xóa tài khoản.
+ */
+public boolean deleteUser(String username) {
+
+    String sql = "DELETE FROM users WHERE username=?";
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setString(1, username);
+
+        if (ps.executeUpdate() > 0) {
+
+            SystemLogger.info("Đã xóa tài khoản: " + username);
+
+            return true;
+        }
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("Lỗi xóa tài khoản: " + e.getMessage());
+
+    }
+
+    return false;
 }
