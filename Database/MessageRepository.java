@@ -29,12 +29,12 @@ public class MessageRepository {
         if (conn == null) {
             // DB không kết nối được → demo mode, bỏ qua lưu, không crash
             SystemLogger.warning("[DB] Demo mode — bỏ qua lưu tin nhắn: "
-                + sender + " → " + receiver);
+                    + sender + " → " + receiver);
             return false;
         }
 
         String sql = "INSERT INTO messages (sender, receiver, content, created_at) "
-                   + "VALUES (?, ?, ?, NOW())";
+                + "VALUES (?, ?, ?, NOW())";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, sender);
             ps.setString(2, receiver != null ? receiver : "GROUP");
@@ -66,10 +66,10 @@ public class MessageRepository {
 
         // Dùng subquery để lấy 50 tin mới nhất rồi đảo ngược thứ tự (cũ trước)
         String sql = "SELECT sender, content FROM ("
-                   + "  SELECT sender, content, created_at FROM messages "
-                   + "  WHERE receiver = 'GROUP' "
-                   + "  ORDER BY created_at DESC LIMIT ?"
-                   + ") sub ORDER BY created_at ASC";
+                + "  SELECT sender, content, created_at FROM messages "
+                + "  WHERE receiver = 'GROUP' "
+                + "  ORDER BY created_at DESC LIMIT ?"
+                + ") sub ORDER BY created_at ASC";
 
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, limit);
@@ -99,10 +99,10 @@ public class MessageRepository {
         if (conn == null) return list;
 
         String sql = "SELECT sender, receiver, content FROM ("
-                   + "  SELECT sender, receiver, content, created_at FROM messages "
-                   + "  WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?) "
-                   + "  ORDER BY created_at DESC LIMIT ?"
-                   + ") sub ORDER BY created_at ASC";
+                + "  SELECT sender, receiver, content, created_at FROM messages "
+                + "  WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?) "
+                + "  ORDER BY created_at DESC LIMIT ?"
+                + ") sub ORDER BY created_at ASC";
 
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user1); ps.setString(2, user2);
@@ -111,9 +111,9 @@ public class MessageRepository {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 list.add(new String[]{
-                    rs.getString("sender"),
-                    rs.getString("receiver"),
-                    rs.getString("content")
+                        rs.getString("sender"),
+                        rs.getString("receiver"),
+                        rs.getString("content")
                 });
             }
         } catch (SQLException e) {
@@ -123,4 +123,214 @@ public class MessageRepository {
         }
         return list;
     }
+}
+/**
+ * Lưu tin nhắn nhóm.
+ */
+public boolean saveGroupMessage(String sender, String content) {
+    return saveMessage(sender, "GROUP", content);
+}
+
+/**
+ * Lưu tin nhắn riêng.
+ */
+public boolean savePrivateMessage(String sender, String receiver, String content) {
+    return saveMessage(sender, receiver, content);
+}
+
+/**
+ * Lấy toàn bộ lịch sử tin nhắn.
+ */
+public List<String[]> getAllMessages() {
+
+    List<String[]> list = new ArrayList<>();
+
+    Connection conn = DatabaseConnection.getConnection();
+    if (conn == null) return list;
+
+    String sql = "SELECT sender, receiver, content "
+            + "FROM messages "
+            + "ORDER BY created_at ASC";
+
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ResultSet rs = ps.executeQuery();
+
+        while (rs.next()) {
+
+            list.add(new String[]{
+                    rs.getString("sender"),
+                    rs.getString("receiver"),
+                    rs.getString("content")
+            });
+
+        }
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("[DB] Lỗi lấy lịch sử: " + e.getMessage());
+
+    } finally {
+
+        try {
+            conn.close();
+        } catch (SQLException ignored) {}
+
+    }
+
+    return list;
+}
+
+/**
+ * Tìm kiếm tin nhắn theo từ khóa.
+ */
+public List<String[]> searchMessages(String keyword) {
+
+    List<String[]> list = new ArrayList<>();
+
+    Connection conn = DatabaseConnection.getConnection();
+    if (conn == null) return list;
+
+    String sql = "SELECT sender, receiver, content "
+            + "FROM messages "
+            + "WHERE sender LIKE ? "
+            + "OR receiver LIKE ? "
+            + "OR content LIKE ? "
+            + "ORDER BY created_at DESC";
+
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        String search = "%" + keyword + "%";
+
+        ps.setString(1, search);
+        ps.setString(2, search);
+        ps.setString(3, search);
+
+        ResultSet rs = ps.executeQuery();
+
+        while (rs.next()) {
+
+            list.add(new String[]{
+                    rs.getString("sender"),
+                    rs.getString("receiver"),
+                    rs.getString("content")
+            });
+
+        }
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("[DB] Lỗi tìm kiếm: " + e.getMessage());
+
+    } finally {
+
+        try {
+            conn.close();
+        } catch (SQLException ignored) {}
+
+    }
+
+    return list;
+}
+
+/**
+ * Đếm tổng số tin nhắn.
+ */
+public int countMessages() {
+
+    Connection conn = DatabaseConnection.getConnection();
+    if (conn == null) return 0;
+
+    String sql = "SELECT COUNT(*) FROM messages";
+
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ResultSet rs = ps.executeQuery();
+
+        if (rs.next()) {
+            return rs.getInt(1);
+        }
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("[DB] Lỗi đếm tin nhắn: " + e.getMessage());
+
+    } finally {
+
+        try {
+            conn.close();
+        } catch (SQLException ignored) {}
+
+    }
+
+    return 0;
+}
+
+/**
+ * Xóa một tin nhắn theo ID.
+ */
+public boolean deleteMessage(int id) {
+
+    Connection conn = DatabaseConnection.getConnection();
+    if (conn == null) return false;
+
+    String sql = "DELETE FROM messages WHERE id=?";
+
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setInt(1, id);
+
+        if (ps.executeUpdate() > 0) {
+
+            SystemLogger.info("[DB] Đã xóa tin nhắn ID = " + id);
+
+            return true;
+        }
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("[DB] Lỗi xóa tin nhắn: " + e.getMessage());
+
+    } finally {
+
+        try {
+            conn.close();
+        } catch (SQLException ignored) {}
+
+    }
+
+    return false;
+}
+
+/**
+ * Xóa toàn bộ lịch sử chat.
+ */
+public boolean clearMessages() {
+
+    Connection conn = DatabaseConnection.getConnection();
+    if (conn == null) return false;
+
+    String sql = "DELETE FROM messages";
+
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.executeUpdate();
+
+        SystemLogger.info("[DB] Đã xóa toàn bộ lịch sử chat.");
+
+        return true;
+
+    } catch (SQLException e) {
+
+        SystemLogger.error("[DB] Lỗi xóa lịch sử: " + e.getMessage());
+
+    } finally {
+
+        try {
+            conn.close();
+        } catch (SQLException ignored) {}
+
+    }
+
+    return false;
 }
