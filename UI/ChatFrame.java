@@ -63,6 +63,7 @@ public class ChatFrame extends JFrame {
             @Override public void onDisconnect()              { doDisconnect(); }
             @Override public void onTyping(boolean typing)   { handleTyping(typing); }
             @Override public void onCreateGroup()            { doCreateGroup(); }
+            @Override public void onJoinRoom(String roomName){ joinRoom(roomName); }
         });
 
         // Ping timer: gui PING moi 5 giay, do RTT that
@@ -249,5 +250,12 @@ public class ChatFrame extends JFrame {
             });
 
         }, "login-thread").start();
+    }
+    // ── Chuyển phòng ───────────────────────────────────────────────────────────
+    private void joinRoom(String roomName) {
+        client.sendJoinRoom(roomName);
+        chatPanel.setCurrentRoom(roomName);
+        chatPanel.clearChat();
+        chatPanel.appendSystemMessage("Đã chuyển sang phòng: " + roomName);
     }
 }

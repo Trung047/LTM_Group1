@@ -27,6 +27,7 @@ public class ChatPanel extends JPanel {
         void onSendMessage(String text);
         void onDisconnect();
         void onTyping(boolean isTyping);
+        void onJoinRoom(String roomName);
         // Nguoi dung bam nut tao nhom
         default void onCreateGroup() {}
     }
@@ -39,7 +40,11 @@ public class ChatPanel extends JPanel {
     private final JLabel        lblConnInfo;
     private final JLabel        lblTyping;
     private final JLabel        lblOnlineStatus;
+    private final JLabel        lblRoomName;       
+    private final DefaultListModel<String> roomModel = new DefaultListModel<>(); 
+    private final JList<String> roomList;         
     private       String        myUsername  = "";
+    private       String        currentRoom = "Phòng chung";
     private       ChatListener  chatListener;
     private       String        lastSender  = "";
     private       long          pingSentAt  = 0;
@@ -57,6 +62,8 @@ public class ChatPanel extends JPanel {
         lblConnInfo     = new JLabel("Chưa kết nối");
         lblTyping       = new JLabel(" ");
         lblOnlineStatus = new JLabel("● Đang hoạt động");
+        lblRoomName     = new JLabel("Phòng chung");
+        roomList        = buildRoomList();
 
         styleLabels();
 
@@ -116,14 +123,13 @@ public class ChatPanel extends JPanel {
         };
         roomAvatar.setOpaque(false);
 
-        JLabel roomName = new JLabel("Phòng chung");
-        roomName.setFont(new Font("Segoe UI", Font.BOLD, 15));
-        roomName.setForeground(DarkTheme.TEXT);
+        lblRoomName.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        lblRoomName.setForeground(DarkTheme.TEXT);
 
         JPanel roomInfo = new JPanel();
         roomInfo.setLayout(new BoxLayout(roomInfo, BoxLayout.Y_AXIS));
         roomInfo.setOpaque(false);
-        roomInfo.add(roomName);
+        roomInfo.add(lblRoomName);
         roomInfo.add(lblOnlineStatus);
 
         left.add(roomAvatar);
@@ -156,21 +162,41 @@ public class ChatPanel extends JPanel {
 
     // ── Center ──────────────────────────────────────────────────────────────────
     private JPanel buildCenter() {
-        JPanel center = new JPanel(new BorderLayout());
-        center.setBackground(DarkTheme.BG);
+    JPanel center = new JPanel(new BorderLayout());
+    center.setBackground(DarkTheme.BG);
 
-        JScrollPane chatScroll = DarkTheme.makeScrollPane(chatPane);
+    // Sidebar chứa Room List và User List
+    JPanel sidebar = new JPanel(new BorderLayout());
+    sidebar.setPreferredSize(new Dimension(240, 0));
 
-        JPanel chatArea = new JPanel(new BorderLayout());
-        chatArea.setBackground(DarkTheme.BG);
-        chatArea.add(chatScroll, BorderLayout.CENTER);
-        lblTyping.setBorder(BorderFactory.createEmptyBorder(4, 16, 4, 0));
-        chatArea.add(lblTyping, BorderLayout.SOUTH);
+    // === DANH SÁCH PHÒNG ===
+    JPanel roomPanel = new JPanel(new BorderLayout());
+    roomPanel.setBackground(DarkTheme.BG2);
+    JLabel lblRooms = new JLabel("📋 DANH SÁCH PHÒNG");
+    lblRooms.setForeground(DarkTheme.TEXT3);
+    lblRooms.setBorder(BorderFactory.createEmptyBorder(10, 12, 5, 12));
+    roomPanel.add(lblRooms, BorderLayout.NORTH);
+    roomPanel.add(DarkTheme.makeScrollPane(roomList), BorderLayout.CENTER);
 
-        center.add(userListPanel, BorderLayout.WEST);
-        center.add(chatArea,      BorderLayout.CENTER);
-        return center;
-    }
+    // Ghép Room + User
+    JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, roomPanel, userListPanel);
+    splitPane.setDividerLocation(220);
+    splitPane.setBorder(null);
+
+    sidebar.add(splitPane, BorderLayout.CENTER);
+
+    // Khu vực chat
+    JScrollPane chatScroll = DarkTheme.makeScrollPane(chatPane);
+    JPanel chatArea = new JPanel(new BorderLayout());
+    chatArea.setBackground(DarkTheme.BG);
+    chatArea.add(chatScroll, BorderLayout.CENTER);
+    lblTyping.setBorder(BorderFactory.createEmptyBorder(4, 16, 4, 0));
+    chatArea.add(lblTyping, BorderLayout.SOUTH);
+
+    center.add(sidebar, BorderLayout.WEST);
+    center.add(chatArea, BorderLayout.CENTER);
+    return center;
+}
 
     // ── Input bar ───────────────────────────────────────────────────────────────
     private JPanel buildInputBar() {
@@ -546,6 +572,57 @@ public class ChatPanel extends JPanel {
         sep.setPreferredSize(new Dimension(1, 16));
         sep.setForeground(DarkTheme.BORDER2);
         return sep;
+    }
+
+    // ── Room List Methods ───────────────────────────────────────────────────────
+private JList<String> buildRoomList() {
+    JList<String> list = new JList<>(roomModel);
+    list.setBackground(DarkTheme.BG2);
+    list.setForeground(DarkTheme.TEXT);
+    list.setFixedCellHeight(42);
+
+    list.addMouseListener(new MouseAdapter() {
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            if (e.getClickCount() == 2) {
+                String room = list.getSelectedValue();
+                if (room != null && !room.equals(currentRoom) && chatListener != null) {
+                    chatListener.onJoinRoom(room);
+                }
+            }
+        }
+    });
+
+    list.setCellRenderer(new DefaultListCellRenderer() {
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, 
+                int index, boolean isSelected, boolean cellHasFocus) {
+            Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            if (value.equals(currentRoom)) {
+                setForeground(DarkTheme.PRIMARY);
+                setFont(DarkTheme.FONT_BOLD);
+            }
+            return c;
+        }
+    });
+    return list;
+    }
+
+    public void setCurrentRoom(String roomName) {
+    this.currentRoom = roomName;
+    SwingUtilities.invokeLater(() -> {
+        lblRoomName.setText(roomName);
+        roomList.repaint();
+    });
+    }
+
+    public void updateRoomList(List<String> rooms) {
+    SwingUtilities.invokeLater(() -> {
+        roomModel.clear();
+        for (String room : rooms) {
+            roomModel.addElement(room);
+        }
+    });
     }
 
     private static String escHtml(String s) {
