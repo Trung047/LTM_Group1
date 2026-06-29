@@ -54,7 +54,7 @@ public class ChatFrame extends JFrame {
 
         // Gan MessageReceiver truoc khi hien cua so
         // Dung setRealListener de dam bao frame bi buffer duoc phat lai ngay
-        MessageReceiver receiver = new MessageReceiver(chatPanel, username);
+        MessageReceiver receiver = new MessageReceiver(chatPanel, username, client);
         client.setRealListener(receiver);
 
         // Lang nghe su kien tu ChatPanel
