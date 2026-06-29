@@ -31,8 +31,9 @@ public class UserRepository {
 
         try (Connection conn = DatabaseConnection.getConnection()) {
             if (conn == null) {
-                SystemLogger.warning("[DB] Demo mode — bỏ qua xác thực: " + username);
-                return false;
+                SystemLogger.warning("[DB] Demo mode — DB không kết nối, cho phép đăng nhập demo: " + username);
+                // Trong demo mode (không có DB) cho phép đăng nhập mọi username
+                return true;
             }
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, username);

@@ -83,6 +83,11 @@ public class Client {
         send(Protocol.LOGOUT);
     }
 
+    public void sendJoinRoom(String roomName) {
+        // Use literal command name to avoid dependency on Protocol.JOIN_ROOM
+        send(Protocol.build("JOIN_ROOM", roomName));
+    }
+
     public void send(String frame) {
         if (writer != null && running) writer.println(frame);
     }

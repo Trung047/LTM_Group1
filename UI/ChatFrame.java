@@ -131,6 +131,7 @@ public class ChatFrame extends JFrame {
             return;
         }
         client.sendCreateGroup(groupName);
+        client.requestRoomList();
     }
 
     // ── Typing debounce ───────────────────────────────────────────────────────

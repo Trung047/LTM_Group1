@@ -25,15 +25,32 @@ public class MessageReceiver implements Client.MessageListener {
 
     private final ChatPanel chatPanel;
     private final String    myUsername;
+    private final Client    client;
 
-    public MessageReceiver(ChatPanel chatPanel, String myUsername) {
+    public MessageReceiver(ChatPanel chatPanel, String myUsername, Client client) {
         this.chatPanel  = chatPanel;
         this.myUsername = myUsername;
+        this.client      = client;
     }
 
     @Override
     public void onFrame(String frame) {
         SwingUtilities.invokeLater(() -> dispatch(frame));
+        if (frame.startsWith(Protocol.GROUP_CREATED)) {
+            String[] parts = Protocol.parse(frame, 2);
+            if (parts.length > 1) {
+                chatPanel.appendSystemMessage("Phòng mới được tạo: " + parts[1]);
+                // Yêu cầu server gửi lại danh sách phòng
+                client.send("ROOM_LIST");
+    }
+} 
+else if (frame.startsWith(Protocol.ROOM_LIST)) {
+    String[] parts = Protocol.parse(frame, 2);
+    if (parts.length > 1) {
+        List<String> rooms = Arrays.asList(parts[1].split(","));
+        chatPanel.updateRoomList(rooms);
+    }
+}
     }
 
     @Override
