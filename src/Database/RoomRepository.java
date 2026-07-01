@@ -1,139 +1,222 @@
 package Database;
 
-import model.Room;
-import Logging.SystemLogger; // Import SystemLogger của bạn
+import Logging.SystemLogger;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Thao tac voi bang rooms va room_members trong DB.
+ *
+ * Cau truc bang (xem migration_phase_c.sql):
+ *   rooms(id, name, creator, created_at)
+ *   room_members(id, room_name, username, joined_at)
+ */
 public class RoomRepository {
 
+    // ── Luu phong ────────────────────────────────────────────────────────────
+
     /**
-     * Tạo phòng mới trong database
-     * @return ID của phòng vừa tạo, hoặc -1 nếu thất bại
+     * Luu mot phong moi vao DB. Bo qua neu phong da ton tai (UNIQUE name).
+     *
+     * @param roomName ten phong
+     * @param creator  nguoi tao (co the null neu la phong mac dinh)
+     * @return true neu luu thanh cong hoac phong da ton tai san
      */
-    public int createRoom(String roomName) {
-        String sql = "INSERT INTO rooms (name) VALUES (?)";
-        
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
+    public boolean saveRoom(String roomName, String creator) {
+        if (roomName == null || roomName.trim().isEmpty()) return false;
 
-        try {
-            conn = DatabaseConnection.getConnection();
-            if (conn == null) return -1;
-
-            ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-            ps.setString(1, roomName);
-            int affectedRows = ps.executeUpdate();
-
-            if (affectedRows > 0) {
-                rs = ps.getGeneratedKeys();
-                if (rs.next()) {
-                    int newRoomId = rs.getInt(1);
-                    SystemLogger.info("Tạo phòng mới thành công: [" + newRoomId + "] " + roomName);
-                    return newRoomId; 
-                }
-            }
-        } catch (SQLException e) {
-            SystemLogger.error("Lỗi khi tạo phòng (createRoom): " + e.getMessage());
-        } finally {
-            // Sử dụng hàm đóng tài nguyên tiện ích từ DatabaseConnection của bạn
-            DatabaseConnection.close(rs, ps, conn);
+        Connection conn = DatabaseConnection.getConnection();
+        if (conn == null) {
+            SystemLogger.warning("[DB] Không kết nối được — bỏ qua lưu phòng: " + roomName);
+            return false;
         }
-        return -1;
+
+        String sql = "INSERT IGNORE INTO rooms (name, creator) VALUES (?, ?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, roomName.trim());
+            ps.setString(2, creator);
+            ps.executeUpdate();
+            SystemLogger.info("[DB] Lưu phòng: " + roomName + " (tạo bởi " + creator + ")");
+            return true;
+        } catch (SQLException e) {
+            SystemLogger.error("[DB] Lỗi lưu phòng: " + e.getMessage());
+            return false;
+        } finally {
+            try { conn.close(); } catch (SQLException ignored) {}
+        }
     }
 
+    // ── Lay danh sach phong ──────────────────────────────────────────────────
+
     /**
-     * Lấy toàn bộ danh sách phòng hiện có
+     * Lay toan bo danh sach phong tu DB (dung khi Server khoi dong
+     * de nap lai vao UserManager).
+     *
+     * @return danh sach ten phong, rong neu DB khong khả dung
      */
-    public List<Room> getAllRooms() {
-        List<Room> rooms = new ArrayList<>();
-        String sql = "SELECT id, name FROM rooms";
-        
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
+    public List<String> getAllRooms() {
+        List<String> rooms = new ArrayList<>();
+        Connection conn = DatabaseConnection.getConnection();
+        if (conn == null) return rooms;
 
-        try {
-            conn = DatabaseConnection.getConnection();
-            if (conn == null) return rooms;
-
-            ps = conn.prepareStatement(sql);
-            rs = ps.executeQuery();
-
+        String sql = "SELECT name FROM rooms ORDER BY created_at ASC";
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                rooms.add(new Room(rs.getInt("id"), rs.getString("name")));
+                rooms.add(rs.getString("name"));
             }
         } catch (SQLException e) {
-            SystemLogger.error("Lỗi lấy danh sách phòng (getAllRooms): " + e.getMessage());
+            SystemLogger.error("[DB] Lỗi lấy danh sách phòng: " + e.getMessage());
         } finally {
-            DatabaseConnection.close(rs, ps, conn);
+            try { conn.close(); } catch (SQLException ignored) {}
         }
         return rooms;
     }
 
+    // ── Thanh vien phong ─────────────────────────────────────────────────────
+
     /**
-     * Tìm kiếm phòng theo ID
+     * Ghi nhan mot user da/dang tham gia mot phong. Bo qua neu da co
+     * (UNIQUE room_name + username).
+     *
+     * @param roomName ten phong
+     * @param username nguoi tham gia
+     * @return true neu luu thanh cong
      */
-    public Room getRoomById(int roomId) {
-        String sql = "SELECT id, name FROM rooms WHERE id = ?";
-        
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
+    public boolean addMember(String roomName, String username) {
+        if (roomName == null || username == null) return false;
 
-        try {
-            conn = DatabaseConnection.getConnection();
-            if (conn == null) return null;
+        Connection conn = DatabaseConnection.getConnection();
+        if (conn == null) {
+            SystemLogger.warning("[DB] Không kết nối được — bỏ qua lưu thành viên phòng: "
+                    + username + " → " + roomName);
+            return false;
+        }
 
-            ps = conn.prepareStatement(sql);
-            ps.setInt(1, roomId);
-            rs = ps.executeQuery();
+        String sql = "INSERT IGNORE INTO room_members (room_name, username) VALUES (?, ?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, roomName.trim());
+            ps.setString(2, username.trim());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            SystemLogger.error("[DB] Lỗi lưu thành viên phòng: " + e.getMessage());
+            return false;
+        } finally {
+            try { conn.close(); } catch (SQLException ignored) {}
+        }
+    }
 
-            if (rs.next()) {
-                return new Room(rs.getInt("id"), rs.getString("name"));
+    /**
+     * Lay danh sach thanh vien (tung tham gia) cua mot phong.
+     *
+     * @param roomName ten phong
+     * @return danh sach username, rong neu DB khong khả dung
+     */
+    public List<String> getRoomMembers(String roomName) {
+        List<String> members = new ArrayList<>();
+        Connection conn = DatabaseConnection.getConnection();
+        if (conn == null) return members;
+
+        String sql = "SELECT username FROM room_members WHERE room_name = ? ORDER BY joined_at ASC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, roomName);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                members.add(rs.getString("username"));
             }
         } catch (SQLException e) {
-            SystemLogger.error("Lỗi tìm phòng (getRoomById): " + e.getMessage());
+            SystemLogger.error("[DB] Lỗi lấy thành viên phòng: " + e.getMessage());
         } finally {
-            DatabaseConnection.close(rs, ps, conn);
+            try { conn.close(); } catch (SQLException ignored) {}
+        }
+        return members;
+    }
+
+    // ── Phase D: xóa thành viên (tính năng 1), kiểm tra creator/membership ──
+
+    /**
+     * Xóa một thành viên khỏi phòng (dùng khi creator xóa thành viên,
+     * hoặc khi thành viên tự rời phòng vĩnh viễn khỏi danh sách DB).
+     *
+     * @param roomName tên phòng
+     * @param username thành viên cần xóa
+     * @return true nếu xóa thành công (kể cả khi trước đó chưa từng có, coi như đã đạt trạng thái mong muốn)
+     */
+    public boolean removeMember(String roomName, String username) {
+        if (roomName == null || username == null) return false;
+
+        Connection conn = DatabaseConnection.getConnection();
+        if (conn == null) {
+            SystemLogger.warning("[DB] Không kết nối được — bỏ qua xóa thành viên phòng: "
+                    + username + " khỏi " + roomName);
+            return false;
+        }
+
+        String sql = "DELETE FROM room_members WHERE room_name = ? AND username = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, roomName.trim());
+            ps.setString(2, username.trim());
+            ps.executeUpdate();
+            SystemLogger.info("[DB] Đã xóa thành viên " + username + " khỏi phòng " + roomName);
+            return true;
+        } catch (SQLException e) {
+            SystemLogger.error("[DB] Lỗi xóa thành viên phòng: " + e.getMessage());
+            return false;
+        } finally {
+            try { conn.close(); } catch (SQLException ignored) {}
+        }
+    }
+
+    /**
+     * Lấy tên người tạo (creator) của một phòng — dùng để kiểm tra quyền
+     * xóa/thêm thành viên (chỉ creator mới được phép).
+     *
+     * @param roomName tên phòng
+     * @return username của creator, hoặc null nếu phòng không có creator
+     *         (vd phòng mặc định "General") hoặc không tìm thấy/DB lỗi
+     */
+    public String getRoomCreator(String roomName) {
+        Connection conn = DatabaseConnection.getConnection();
+        if (conn == null) return null;
+
+        String sql = "SELECT creator FROM rooms WHERE name = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, roomName);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getString("creator");
+        } catch (SQLException e) {
+            SystemLogger.error("[DB] Lỗi lấy creator phòng: " + e.getMessage());
+        } finally {
+            try { conn.close(); } catch (SQLException ignored) {}
         }
         return null;
     }
 
     /**
-     * Xóa phòng theo ID
+     * Kiểm tra một user có đang là thành viên của phòng hay không.
+     *
+     * @param roomName tên phòng
+     * @param username username cần kiểm tra
+     * @return true nếu là thành viên
      */
-    public boolean deleteRoom(int roomId) {
-        String sql = "DELETE FROM rooms WHERE id = ?";
-        
-        Connection conn = null;
-        PreparedStatement ps = null;
+    public boolean isMember(String roomName, String username) {
+        Connection conn = DatabaseConnection.getConnection();
+        if (conn == null) return false;
 
-        try {
-            conn = DatabaseConnection.getConnection();
-            if (conn == null) return false;
-
-            ps = conn.prepareStatement(sql);
-            ps.setInt(1, roomId);
-            
-            int affectedRows = ps.executeUpdate();
-            if (affectedRows > 0) {
-                SystemLogger.info("Đã xóa phòng có ID: " + roomId);
-                return true;
-            }
+        String sql = "SELECT 1 FROM room_members WHERE room_name = ? AND username = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, roomName);
+            ps.setString(2, username);
+            ResultSet rs = ps.executeQuery();
+            return rs.next();
         } catch (SQLException e) {
-            SystemLogger.error("Lỗi khi xóa phòng (deleteRoom): " + e.getMessage());
+            SystemLogger.error("[DB] Lỗi kiểm tra thành viên phòng: " + e.getMessage());
+            return false;
         } finally {
-            // Không có ResultSet nên chỉ truyền ps và conn
-            DatabaseConnection.close(null, ps, conn);
+            try { conn.close(); } catch (SQLException ignored) {}
         }
-        return false;
     }
 }
