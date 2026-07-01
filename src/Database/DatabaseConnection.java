@@ -2,7 +2,6 @@ package Database;
 
 import Logging.SystemLogger;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
@@ -27,39 +26,30 @@ public class DatabaseConnection {
         Properties props = new Properties();
         String url  = "jdbc:mysql://localhost:3306/ltm_db";
         String user = "root";
-        String pass = "123456";
+        String pass = "";
 
-        boolean loaded = false;
-        try (InputStream fis = new FileInputStream("config.properties")) {
-            props.load(fis);
-            loaded = true;
-            System.out.println("[DB] Đọc config.properties từ working directory thành công.");
-        } catch (IOException ignored) {
-            try (InputStream is = DatabaseConnection.class
-                    .getClassLoader()
-                    .getResourceAsStream("config.properties")) {
-                if (is != null) {
-                    props.load(is);
-                    loaded = true;
-                    System.out.println("[DB] Đọc config.properties từ classpath thành công.");
-                }
-            } catch (IOException e) {
-                System.out.println("[DB] Lỗi đọc config.properties: " + e.getMessage());
+        try (InputStream is = DatabaseConnection.class
+                .getClassLoader()
+                .getResourceAsStream("config.properties")) {
+
+            if (is != null) {
+                props.load(is);
+                String host = props.getProperty("db.host",     "localhost");
+                String port = props.getProperty("db.port",     "3306");
+                String name = props.getProperty("db.name",     "ltm_db");
+                user = props.getProperty("db.username", "root");
+                pass = props.getProperty("db.password", "");
+                url  = "jdbc:mysql://" + host + ":" + port + "/" + name
+                        + "?useSSL=false&allowPublicKeyRetrieval=true"
+                        + "&serverTimezone=Asia/Ho_Chi_Minh"
+                        + "&characterEncoding=UTF-8";
+                System.out.println("[DB] Đọc config.properties thành công.");
+            } else {
+                System.out.println("[DB] Không tìm thấy config.properties — dùng giá trị mặc định.");
             }
-        }
 
-        if (loaded) {
-            String host = props.getProperty("db.host", "localhost");
-            String port = props.getProperty("db.port", "3306");
-            String name = props.getProperty("db.name", "ltm_db");
-            user = props.getProperty("db.username", "root");
-            pass = props.getProperty("db.password", "");
-            url = "jdbc:mysql://" + host + ":" + port + "/" + name
-                    + "?useSSL=false&allowPublicKeyRetrieval=true"
-                    + "&serverTimezone=Asia/Ho_Chi_Minh"
-                    + "&characterEncoding=UTF-8";
-        } else {
-            System.out.println("[DB] Không tìm thấy config.properties — dùng giá trị mặc định.");
+        } catch (IOException e) {
+            System.out.println("[DB] Lỗi đọc config.properties: " + e.getMessage());
         }
 
         DB_URL  = url;
@@ -80,9 +70,9 @@ public class DatabaseConnection {
             SystemLogger.info("Kết nối Database thành công.");
             return conn;
         } catch (ClassNotFoundException e) {
-            SystemLogger.warning("Không tìm thấy Driver MySQL, chuyển sang chế độ fallback: " + e.getMessage());
+            SystemLogger.error("Không tìm thấy Driver MySQL: " + e.getMessage());
         } catch (SQLException e) {
-            SystemLogger.warning("Lỗi kết nối Database, chuyển sang chế độ fallback: " + e.getMessage());
+            SystemLogger.error("Lỗi kết nối Database: " + e.getMessage());
         }
         return null;
     }
