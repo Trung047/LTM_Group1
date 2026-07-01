@@ -109,14 +109,6 @@ public class Client {
         send(Protocol.build(Protocol.GET_ROOM_MEMBERS, roomName));
     }
 
-    public void requestRoomJoinRequests(String roomName) {
-        send(Protocol.build(Protocol.GET_ROOM_JOIN_REQUESTS, roomName));
-    }
-
-    public void sendDeclineJoinRequest(String roomName, String username) {
-        send(Protocol.build(Protocol.DECLINE_JOIN_REQUEST, roomName, username));
-    }
-
     // ── Phase D: Tim kiem (tinh nang 6) ──────────────────────────────────────────
 
     public void sendSearch(String roomName, String keyword) {

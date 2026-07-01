@@ -167,26 +167,6 @@ public class MessageReceiver implements Client.MessageListener {
             List<String> rooms = Arrays.asList(p[1].split(","));
             chatPanel.updateRoomList(rooms);
 
-        } else if (frame.startsWith(Protocol.JOIN_REQUEST_PENDING + ":")) {
-            String[] p = Protocol.parse(frame, 2);
-            if (p.length < 2) return;
-            chatPanel.appendSystemMessage("⏳ Yêu cầu tham gia phòng " + p[1] + " đã được gửi và đang chờ duyệt.");
-
-        } else if (frame.startsWith(Protocol.ROOM_JOIN_REQUEST + ":")) {
-            String[] p = Protocol.parse(frame, 3);
-            if (p.length < 3) return;
-            chatPanel.appendSystemMessage("📩 " + p[2] + " muốn tham gia phòng " + p[1] + " — hãy duyệt hoặc mời họ.");
-
-        } else if (frame.startsWith(Protocol.ROOM_INVITE + ":")) {
-            String[] p = Protocol.parse(frame, 3);
-            if (p.length < 3) return;
-            chatPanel.appendSystemMessage("📩 Bạn được mời vào phòng " + p[1] + " bởi " + p[2] + ". Hãy thử vào lại phòng này.");
-
-        } else if (frame.startsWith(Protocol.JOIN_REQUEST_APPROVED + ":")) {
-            String[] p = Protocol.parse(frame, 2);
-            if (p.length < 2) return;
-            chatPanel.appendSystemMessage("✅ Yêu cầu tham gia phòng " + p[1] + " đã được chấp thuận.");
-
         // ── Phase D: quan ly thanh vien phong ─────────────────────────────────
         } else if (frame.startsWith(Protocol.MEMBER_REMOVED + ":")) {
             String[] p = Protocol.parse(frame, 3);
@@ -217,14 +197,6 @@ public class MessageReceiver implements Client.MessageListener {
             List<String> members = p[2].trim().isEmpty()
                     ? new ArrayList<>() : Arrays.asList(p[2].split(","));
             chatPanel.setRoomMembers(room, members);
-
-        } else if (frame.startsWith(Protocol.ROOM_JOIN_REQUESTS + ":")) {
-            String[] p = Protocol.parse(frame, 3);
-            if (p.length < 3) return;
-            String room = p[1];
-            List<String> requests = p[2].trim().isEmpty()
-                    ? new ArrayList<>() : Arrays.asList(p[2].split(","));
-            chatPanel.setRoomJoinRequests(room, requests);
 
         // ── Phase D: tim kiem ──────────────────────────────────────────────────
         } else if (frame.startsWith(Protocol.SEARCH_RESULT + ":")) {
