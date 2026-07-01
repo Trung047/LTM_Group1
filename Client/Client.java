@@ -13,9 +13,9 @@ import java.util.List;
  * UI (ChatFrame) dang ky MessageListener de nhan frame tu server.
  *
  * FIX RACE CONDITION:
- * Khi server gui USER_LIST ngay sau AUTH_OK, listener that (MessageReceiver)
- * co the chua duoc set vi ChatFrame chua khoi tao xong.
- * Giai phap: buffer cac frame den khi listener that duoc gan vao.
+ *   Khi server gui USER_LIST ngay sau AUTH_OK, listener that (MessageReceiver)
+ *   co the chua duoc set vi ChatFrame chua khoi tao xong.
+ *   Giai phap: buffer cac frame den khi listener that duoc gan vao.
  */
 public class Client {
 
@@ -84,15 +84,65 @@ public class Client {
     }
 
     public void sendJoinRoom(String roomName) {
-        // Use literal command name to avoid dependency on Protocol.JOIN_ROOM
-        send(Protocol.build("JOIN_ROOM", roomName));
+        send(Protocol.build(Protocol.JOIN_ROOM, roomName));
     }
 
     /**
-     * Yêu cầu server gửi lại danh sách phòng (ROOM_LIST)
+     * Yeu cau server gui lai danh sach phong hien co.
+     * Duoc goi tu ChatFrame.doCreateGroup() sau khi tao nhom moi.
      */
     public void requestRoomList() {
-        send("ROOM_LIST");
+        send(Protocol.ROOM_LIST);
+    }
+
+    // ── Phase D: Quan ly thanh vien phong (tinh nang 1 & 2) ─────────────────────
+
+    public void sendRemoveMember(String roomName, String username) {
+        send(Protocol.build(Protocol.REMOVE_MEMBER, roomName, username));
+    }
+
+    public void sendAddMember(String roomName, String username) {
+        send(Protocol.build(Protocol.ADD_MEMBER, roomName, username));
+    }
+
+    public void requestRoomMembers(String roomName) {
+        send(Protocol.build(Protocol.GET_ROOM_MEMBERS, roomName));
+    }
+
+    public void requestRoomJoinRequests(String roomName) {
+        send(Protocol.build(Protocol.GET_ROOM_JOIN_REQUESTS, roomName));
+    }
+
+    public void sendDeclineJoinRequest(String roomName, String username) {
+        send(Protocol.build(Protocol.DECLINE_JOIN_REQUEST, roomName, username));
+    }
+
+    // ── Phase D: Tim kiem (tinh nang 6) ──────────────────────────────────────────
+
+    public void sendSearch(String roomName, String keyword) {
+        send(Protocol.build(Protocol.SEARCH_MSG, roomName, keyword));
+    }
+
+    // ── Phase D: Gui file/anh (tinh nang 7) ──────────────────────────────────────
+
+    public void sendFileGroup(String fileName, String base64Content) {
+        send(Protocol.build(Protocol.FILE_GROUP, fileName, base64Content));
+    }
+
+    public void sendFilePrivate(String toUser, String fileName, String base64Content) {
+        send(Protocol.build(Protocol.FILE_PRIVATE, toUser, fileName, base64Content));
+    }
+
+    // ── Phase D: Thu hoi tin nhan (tinh nang 8) ──────────────────────────────────
+
+    public void sendRecall(long messageId) {
+        send(Protocol.build(Protocol.RECALL, String.valueOf(messageId)));
+    }
+
+    // ── Phase D: Dang ky tai khoan moi (tinh nang 9) ─────────────────────────────
+
+    public void sendRegister(String username, String password) {
+        send(Protocol.build(Protocol.REGISTER, username, password));
     }
 
     public void send(String frame) {
