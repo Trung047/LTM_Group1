@@ -25,6 +25,11 @@ public class Protocol {
     public static final String MSG_GROUP   = "MSG_GROUP";
     public static final String MSG_PRIVATE = "MSG_PRIVATE";
 
+    // Thêm các hằng số mới liên quan đến Room:
+    public static final String ROOM_LIST = "ROOM_LIST";
+    public static final String JOIN_ROOM = "JOIN_ROOM";
+
+    // ...
     // Auth results
     public static final String AUTH_OK   = "AUTH_OK";
     public static final String AUTH_FAIL = "AUTH_FAIL";
