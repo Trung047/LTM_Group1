@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- ==========================================
 CREATE TABLE IF NOT EXISTS rooms (
     id         INT AUTO_INCREMENT PRIMARY KEY,
-    room_name  VARCHAR(100) NOT NULL UNIQUE,
+   	name  VARCHAR(100) NOT NULL UNIQUE,
     created_at DATETIME     DEFAULT NOW()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -59,12 +59,7 @@ INSERT IGNORE INTO users (username, password) VALUES
     ('an',      '123'),
 	('tri',     '123');
 -- Phòng chat mặc định
-INSERT IGNORE INTO rooms (room_name) VALUES
+INSERT IGNORE INTO rooms (name) VALUES
     ('General'),
     ('Java'),
     ('Study');
-
-CREATE TABLE IF NOT EXISTS rooms (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE
-);
