@@ -64,3 +64,7 @@ INSERT IGNORE INTO rooms (room_name) VALUES
     ('Java'),
     ('Study');
 
+CREATE TABLE IF NOT EXISTS rooms (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE
+);
