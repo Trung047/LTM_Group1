@@ -13,9 +13,9 @@ import java.util.List;
  * UI (ChatFrame) dang ky MessageListener de nhan frame tu server.
  *
  * FIX RACE CONDITION:
- *   Khi server gui USER_LIST ngay sau AUTH_OK, listener that (MessageReceiver)
- *   co the chua duoc set vi ChatFrame chua khoi tao xong.
- *   Giai phap: buffer cac frame den khi listener that duoc gan vao.
+ * Khi server gui USER_LIST ngay sau AUTH_OK, listener that (MessageReceiver)
+ * co the chua duoc set vi ChatFrame chua khoi tao xong.
+ * Giai phap: buffer cac frame den khi listener that duoc gan vao.
  */
 public class Client {
 
@@ -86,6 +86,13 @@ public class Client {
     public void sendJoinRoom(String roomName) {
         // Use literal command name to avoid dependency on Protocol.JOIN_ROOM
         send(Protocol.build("JOIN_ROOM", roomName));
+    }
+
+    /**
+     * Yêu cầu server gửi lại danh sách phòng (ROOM_LIST)
+     */
+    public void requestRoomList() {
+        send("ROOM_LIST");
     }
 
     public void send(String frame) {
